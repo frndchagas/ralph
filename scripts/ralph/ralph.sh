@@ -186,13 +186,6 @@ check_dependencies() {
         exit 1
     fi
 
-    if [[ "$USE_BROWSER" == true ]]; then
-        if ! command -v bun &> /dev/null; then
-            log_error "bun not found (required for --browser). Install at: https://bun.sh"
-            exit 1
-        fi
-    fi
-
     log_success "All dependencies found"
 }
 
@@ -240,11 +233,11 @@ create_worktree() {
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
         log_info "Branch already exists, using existing"
     else
-        git branch "$branch_name" "origin/$default_branch" 2>&1 >&2 || git branch "$branch_name" "$default_branch" 2>&1 >&2
+        git branch "$branch_name" "origin/$default_branch" >/dev/null 2>&1 || git branch "$branch_name" "$default_branch" >/dev/null 2>&1
     fi
 
     log_info "Creating worktree: $worktree_dir"
-    git worktree add "$worktree_dir" "$branch_name" >&2
+    git worktree add "$worktree_dir" "$branch_name" >/dev/null 2>&1
 
     log_info "Running worktree setup..."
     cd "$worktree_dir" || { log_error "Failed to cd into worktree"; exit 1; }

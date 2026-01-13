@@ -182,14 +182,14 @@ create_worktree() {
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
         log_info "Branch already exists, using existing"
     else
-        git branch "$branch_name" "origin/$default_branch" 2>/dev/null || git branch "$branch_name" "$default_branch"
+        git branch "$branch_name" "origin/$default_branch" 2>&1 >&2 || git branch "$branch_name" "$default_branch" 2>&1 >&2
     fi
 
     log_info "Creating worktree: $worktree_dir"
-    git worktree add "$worktree_dir" "$branch_name"
+    git worktree add "$worktree_dir" "$branch_name" >&2
 
     log_info "Running worktree setup..."
-    cd "$worktree_dir"
+    cd "$worktree_dir" || { log_error "Failed to cd into worktree"; exit 1; }
 
     if [[ -f ".claude/scripts/worktree-setup.sh" ]]; then
         bash .claude/scripts/worktree-setup.sh

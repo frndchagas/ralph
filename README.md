@@ -21,14 +21,31 @@ Ralph is a system that enables Claude Code to autonomously complete entire featu
 - [jq](https://stedolan.github.io/jq/) (`brew install jq`)
 - Git
 
-### 2. Copy to Your Project
+### 2. Install Ralph in Your Project
 
 ```bash
-# Copy the .claude/commands folder
-cp -r .claude/commands /path/to/your/project/.claude/
+# Clone Ralph to a temp directory
+git clone https://github.com/frndchagas/ralph.git /tmp/ralph
 
-# Copy the scripts folder
-cp -r scripts/ralph /path/to/your/project/scripts/
+# Copy commands to your project (create .claude if needed)
+mkdir -p /path/to/your/project/.claude
+cp -r /tmp/ralph/.claude/commands /path/to/your/project/.claude/
+
+# Copy scripts to your project
+mkdir -p /path/to/your/project/scripts
+cp -r /tmp/ralph/scripts/ralph /path/to/your/project/scripts/
+
+# Cleanup
+rm -rf /tmp/ralph
+```
+
+Or as a one-liner:
+```bash
+git clone https://github.com/frndchagas/ralph.git /tmp/ralph && \
+  mkdir -p .claude scripts && \
+  cp -r /tmp/ralph/.claude/commands .claude/ && \
+  cp -r /tmp/ralph/scripts/ralph scripts/ && \
+  rm -rf /tmp/ralph
 ```
 
 ### 3. Create a PRD

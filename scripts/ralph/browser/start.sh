@@ -9,15 +9,39 @@ export RALPH_BROWSER_HEADLESS="${RALPH_BROWSER_HEADLESS:-true}"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[BROWSER]${NC} $1"; }
 log_success() { echo -e "${GREEN}[BROWSER]${NC} $1"; }
 log_error() { echo -e "${RED}[BROWSER]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[BROWSER]${NC} $1"; }
+
+install_bun() {
+    log_warning "Bun not found. Installing automatically..."
+
+    if curl -fsSL https://bun.sh/install | bash > /dev/null 2>&1; then
+        export BUN_INSTALL="$HOME/.bun"
+        export PATH="$BUN_INSTALL/bin:$PATH"
+
+        if command -v bun &> /dev/null; then
+            log_success "Bun installed successfully! ($(bun --version))"
+            return 0
+        fi
+    fi
+
+    log_error "Failed to install Bun automatically"
+    log_info "Try manually: curl -fsSL https://bun.sh/install | bash"
+    exit 1
+}
 
 if ! command -v bun &> /dev/null; then
-    log_error "Bun not found. Install at: https://bun.sh"
-    exit 1
+    if [[ -f "$HOME/.bun/bin/bun" ]]; then
+        export BUN_INSTALL="$HOME/.bun"
+        export PATH="$BUN_INSTALL/bin:$PATH"
+    else
+        install_bun
+    fi
 fi
 
 if [[ -f "$PID_FILE" ]]; then

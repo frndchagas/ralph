@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ralph archives (optional - keep if you want history)
+# scripts/ralph/archive/
+
+# Generated task files (project-specific)
+tasks/prd.json
+tasks/progress.txt

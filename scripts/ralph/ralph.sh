@@ -4,8 +4,38 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MAX_ITERATIONS_ARG=${1:-"auto"}
-FEATURE_NAME=${2:-"feature"}
+
+MAX_ITERATIONS_ARG="auto"
+FEATURE_NAME="feature"
+USE_BROWSER=false
+BROWSER_HEADLESS=true
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --browser)
+            USE_BROWSER=true
+            shift
+            ;;
+        --browser-visible)
+            USE_BROWSER=true
+            BROWSER_HEADLESS=false
+            shift
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            if [[ "$MAX_ITERATIONS_ARG" == "auto" ]] && [[ -z "${FIRST_ARG_SET:-}" ]]; then
+                MAX_ITERATIONS_ARG="$1"
+                FIRST_ARG_SET=true
+            else
+                FEATURE_NAME="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 calculate_iterations() {
     local prd_file="$1"
@@ -30,6 +60,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 GRAY='\033[0;90m'
+MAGENTA='\033[0;35m'
 NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1" >&2; }
@@ -37,6 +68,7 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" >&2; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 log_ralph() { echo -e "${CYAN}[RALPH]${NC} $1" >&2; }
+log_browser() { echo -e "${MAGENTA}[BROWSER]${NC} $1" >&2; }
 
 show_progress() {
     local prd_file="$1"
@@ -154,7 +186,33 @@ check_dependencies() {
         exit 1
     fi
 
+    if [[ "$USE_BROWSER" == true ]]; then
+        if ! command -v bun &> /dev/null; then
+            log_error "bun not found (required for --browser). Install at: https://bun.sh"
+            exit 1
+        fi
+    fi
+
     log_success "All dependencies found"
+}
+
+start_browser_server() {
+    log_browser "Starting browser server..."
+    export RALPH_BROWSER_HEADLESS="$BROWSER_HEADLESS"
+    bash "${SCRIPT_DIR}/browser/start.sh"
+
+    if [[ "$BROWSER_HEADLESS" == true ]]; then
+        log_browser "Mode: headless"
+    else
+        log_browser "Mode: visible"
+    fi
+}
+
+stop_browser_server() {
+    if [[ "$USE_BROWSER" == true ]]; then
+        log_browser "Stopping browser server..."
+        bash "${SCRIPT_DIR}/browser/stop.sh"
+    fi
 }
 
 create_worktree() {
@@ -231,6 +289,21 @@ get_pending_stories() {
     fi
 }
 
+build_prompt() {
+    local base_prompt=$(cat "${SCRIPT_DIR}/prompt.md")
+
+    if [[ "$USE_BROWSER" == true ]]; then
+        local browser_instructions=$(cat "${SCRIPT_DIR}/browser-instructions.md" 2>/dev/null || echo "")
+        if [[ -n "$browser_instructions" ]]; then
+            echo -e "${base_prompt}\n\n${browser_instructions}"
+        else
+            echo "$base_prompt"
+        fi
+    else
+        echo "$base_prompt"
+    fi
+}
+
 run_ralph_loop() {
     local work_dir="$1"
     local iteration=1
@@ -260,7 +333,12 @@ run_ralph_loop() {
     log_ralph "Starting autonomous loop..."
     log_info "Max iterations: $MAX_ITERATIONS"
     log_info "Working directory: $work_dir"
+    if [[ "$USE_BROWSER" == true ]]; then
+        log_info "Browser: ${GREEN}enabled${NC} (http://localhost:${RALPH_BROWSER_PORT:-9222})"
+    fi
     echo ""
+
+    local prompt=$(build_prompt)
 
     while [[ $iteration -le $MAX_ITERATIONS ]]; do
         echo ""
@@ -298,7 +376,7 @@ run_ralph_loop() {
 
         local output
         local temp_output=$(mktemp)
-        claude --dangerously-skip-permissions -p "$(cat "${SCRIPT_DIR}/prompt.md")" 2>&1 | tee "$temp_output" || true
+        claude --dangerously-skip-permissions -p "$prompt" 2>&1 | tee "$temp_output" || true
         output=$(cat "$temp_output")
         rm -f "$temp_output"
 
@@ -355,6 +433,12 @@ run_ralph_loop() {
     fi
 }
 
+cleanup() {
+    stop_browser_server
+}
+
+trap cleanup EXIT
+
 main() {
     show_banner
     check_dependencies
@@ -366,7 +450,15 @@ main() {
     else
         log_info "Max iterations: $MAX_ITERATIONS_ARG"
     fi
+    if [[ "$USE_BROWSER" == true ]]; then
+        log_info "Browser: enabled"
+    fi
     echo ""
+
+    if [[ "$USE_BROWSER" == true ]]; then
+        start_browser_server
+        echo ""
+    fi
 
     local work_dir
     work_dir=$(create_worktree)
@@ -376,4 +468,4 @@ main() {
     run_ralph_loop "$work_dir"
 }
 
-main "$@"
+main

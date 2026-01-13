@@ -12,6 +12,7 @@ Ralph is a system that enables Claude Code to autonomously complete entire featu
 - **Git worktrees**: Isolated development environment per feature
 - **Progress tracking**: Visual progress bars and status updates
 - **Stall detection**: Warns if stuck on the same task
+- **Browser automation** (optional): Playwright-based browser for UI testing
 
 ## Quick Start
 
@@ -20,6 +21,7 @@ Ralph is a system that enables Claude Code to autonomously complete entire featu
 - [Claude Code CLI](https://claude.ai/code)
 - [jq](https://stedolan.github.io/jq/) (`brew install jq`)
 - Git
+- [Bun](https://bun.sh) (only for `--browser` mode)
 
 ### 2. Install Ralph in Your Project
 
@@ -98,7 +100,12 @@ your-project/
 │   └── ralph/
 │       ├── ralph.sh         # Main loop script
 │       ├── prompt.md        # Agent instructions
-│       └── archive/         # Previous run archives
+│       ├── browser-instructions.md  # Browser API docs
+│       ├── archive/         # Previous run archives
+│       └── browser/         # Browser automation (optional)
+│           ├── src/server.ts
+│           ├── start.sh
+│           └── stop.sh
 └── tasks/
     ├── prd-feature.md       # Generated PRD
     ├── prd.json             # JSON for Ralph
@@ -116,13 +123,15 @@ your-project/
 ## CLI Usage
 
 ```bash
-./scripts/ralph/ralph.sh [max_iterations] [feature_name]
+./scripts/ralph/ralph.sh [max_iterations] [feature_name] [--browser] [--browser-visible]
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | max_iterations | auto | Max iterations (auto = stories + 30%) |
 | feature_name | "feature" | Name for worktree and branch |
+| --browser | off | Enable headless browser automation |
+| --browser-visible | off | Enable browser with visible window |
 
 ### Examples
 
@@ -135,7 +144,46 @@ your-project/
 
 # Quick 5-iteration run
 ./scripts/ralph/ralph.sh 5 "bug-fix"
+
+# With browser automation (headless)
+./scripts/ralph/ralph.sh auto "checkout-flow" --browser
+
+# With visible browser (for debugging)
+./scripts/ralph/ralph.sh auto "login-tests" --browser-visible
 ```
+
+## Browser Mode
+
+When enabled, Ralph starts a Playwright-based browser server that Claude can use for UI testing and validation.
+
+### When to Use
+
+- User stories involving UI validation
+- Testing user flows (login, forms, checkout)
+- Verifying visual elements
+- Taking screenshots for documentation
+
+### Browser API
+
+The server runs on `http://localhost:9222` with these endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Server status |
+| GET | `/pages` | List open pages |
+| POST | `/pages` | Create named page |
+| POST | `/navigate` | Navigate to URL |
+| POST | `/screenshot` | Take screenshot |
+| POST | `/content` | Get page content |
+| POST | `/click` | Click element |
+| POST | `/fill` | Fill input field |
+| POST | `/eval` | Run JavaScript |
+| POST | `/wait` | Wait for element |
+| DELETE | `/pages/:name` | Close page |
+
+### Session Persistence
+
+Cookies and local storage persist between navigations. Login once and the session is maintained.
 
 ## Monitoring
 

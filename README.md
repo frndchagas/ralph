@@ -2,556 +2,170 @@
 
 > Autonomous AI Agent Loop for **Claude Code CLI**
 
-Ralph is a system that enables [Claude Code CLI](https://claude.ai/code) to autonomously complete entire features by iterating through a PRD (Product Requirements Document). Each iteration, Claude works on one user story, commits changes, documents learnings, and continues until all tasks are complete.
-
-## Why Claude Code?
-
-Ralph is specifically designed for **Claude Code CLI** and leverages its unique capabilities:
-
-- **Persistent context**: Claude Code maintains conversation state across iterations
-- **Tool access**: Direct file system, git, and shell access via CLI tools
-- **Subagent system**: Can spawn specialized agents for parallel work (explore, plan, review)
-- **Permission management**: Uses `--dangerously-skip-permissions` for autonomous operation
+Ralph enables [Claude Code CLI](https://claude.ai/code) to autonomously complete entire features by iterating through a PRD. Each iteration, Claude works on one user story, commits changes, documents learnings, and continues until done.
 
 ## Features
 
-- **Autonomous execution**: Runs Claude Code in a loop until feature is complete
-- **Persistent memory**: Uses `progress.txt` to share learnings across iterations
-- **Guardrails**: Persistent lessons learned that guide future iterations
-- **PRD-driven**: Structured task management via JSON
-- **Granular status**: Stories have `open|in_progress|done` status with timestamps
-- **Git worktrees**: Isolated development environment per feature
-- **Progress tracking**: Visual progress bars and status updates
-- **Stall detection**: Warns if stuck on the same task
-- **Stale detection**: Auto-resets stories stuck for too long (configurable timeout)
-- **Activity log**: Timestamped log of all story transitions
-- **Rate limit handling**: Detects Claude rate limits with exponential backoff
-- **Learning consolidation**: Auto-updates CLAUDE.md/AGENTS.md at PRD completion
-- **Code quality rules**: Enforces clean code patterns during development
-- **Multi-agent mode** (optional): Leverages Claude's parallel subagents for faster execution
-- **Browser automation** (optional): Playwright-based browser for UI testing
+**Core**
+- Autonomous loop with persistent memory (`progress.txt`, `guardrails.md`)
+- PRD-driven task management with granular status (`open` → `in_progress` → `done`)
+- Git worktrees for isolated development
+- Rate limit detection with exponential backoff
+- Learning consolidation into `CLAUDE.md`/`AGENTS.md` at completion
+
+**Optional**
+- `--multi-agent`: Parallel subagents for faster exploration
+- `--browser`: Playwright-based UI testing with multi-context support
 
 ## Quick Start
 
-### 1. Install Dependencies
-
-- **[Claude Code CLI](https://claude.ai/code)** - Required
-- [jq](https://stedolan.github.io/jq/) (`brew install jq`)
-- Git
-- [Bun](https://bun.sh) (only for `--browser` mode)
-
-### 2. Install Ralph in Your Project
-
 ```bash
-# Clone Ralph to a temp directory
-git clone https://github.com/frndchagas/ralph.git /tmp/ralph
-
-# Copy commands to your project (create .claude if needed)
-mkdir -p /path/to/your/project/.claude
-cp -r /tmp/ralph/.claude/commands /path/to/your/project/.claude/
-
-# Copy scripts to your project
-mkdir -p /path/to/your/project/scripts
-cp -r /tmp/ralph/scripts/ralph /path/to/your/project/scripts/
-
-# Cleanup
-rm -rf /tmp/ralph
-```
-
-Or as a one-liner:
-```bash
+# 1. Install Ralph
 git clone https://github.com/frndchagas/ralph.git /tmp/ralph && \
   mkdir -p .claude scripts && \
   cp -r /tmp/ralph/.claude/commands .claude/ && \
   cp -r /tmp/ralph/scripts/ralph scripts/ && \
   rm -rf /tmp/ralph
-```
 
-### 3. Create a PRD
-
-Inside Claude Code:
-```
+# 2. Create PRD (inside Claude Code)
 /prd
-```
-
-Answer the clarifying questions to generate a structured PRD.
-
-### 4. Convert to JSON
-
-```
 /prd-to-json tasks/prd-my-feature.md
+
+# 3. Run
+./scripts/ralph/ralph.sh auto "my-feature"
 ```
 
-### 5. Run Ralph
+**Dependencies:** [Claude Code CLI](https://claude.ai/code), [jq](https://stedolan.github.io/jq/), Git, [Bun](https://bun.sh) (browser mode only)
+
+## CLI Usage
 
 ```bash
-./scripts/ralph/ralph.sh auto "my-feature"
+./scripts/ralph/ralph.sh [iterations] [feature] [options]
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| iterations | auto | Max iterations (auto = stories + 30%) |
+| feature | "feature" | Name for worktree/branch |
+| --multi-agent | off | Enable parallel subagents |
+| --browser | off | Headless browser |
+| --browser-visible | off | Visible browser |
+| --no-worktree | off | Use current directory |
+
+**Examples:**
+```bash
+./scripts/ralph/ralph.sh auto "user-auth"              # Basic
+./scripts/ralph/ralph.sh auto "feature" --multi-agent  # Faster exploration
+./scripts/ralph/ralph.sh auto "e2e" --browser          # With UI testing
+./scripts/ralph/ralph.sh auto "fix" --no-worktree      # Resume existing
 ```
 
 ## Workflow
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    RALPH LOOP                           │
-├─────────────────────────────────────────────────────────┤
-│  1. Creates isolated worktree (ralph-<feature>)         │
-│  2. Reads prd.json for pending tasks                    │
-│  3. Reads progress.txt for previous learnings           │
-│  4. Executes Claude Code with agent prompt              │
-│  5. Claude implements highest priority incomplete story │
-│  6. Commits + updates prd.json + progress.txt           │
-│  7. Repeats until COMPLETE or iteration limit           │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  1. Create worktree → 2. Read PRD + memory  │
+│  3. Claude implements one story             │
+│  4. Commit + update status + document       │
+│  5. Repeat until COMPLETE                   │
+└─────────────────────────────────────────────┘
 ```
 
 ## Project Structure
 
 ```
 your-project/
-├── .claude/
-│   └── commands/
-│       ├── prd.md           # PRD generator command
-│       ├── prd-to-json.md   # JSON converter command
-│       ├── ralph.md         # Ralph documentation
-│       ├── overview.md      # Overview generator command
-│       └── frontend-design.md # UI/UX design assistant
-├── scripts/
-│   └── ralph/
-│       ├── ralph.sh         # Main loop script
-│       ├── overview.sh      # Generate markdown summary
-│       ├── prompt.md        # Agent instructions
-│       ├── parallel-instructions.md  # Multi-agent instructions
-│       ├── guardrails-template.md    # Template for guardrails
-│       ├── browser-instructions.md   # Browser API docs
-│       ├── archive/         # Previous run archives
-│       └── browser/         # Browser automation (optional)
-│           ├── src/server.ts
-│           ├── start.sh
-│           └── stop.sh
+├── .claude/commands/     # /prd, /prd-to-json, /ralph, /overview
+├── scripts/ralph/        # ralph.sh, prompt.md, browser/
 └── tasks/
-    ├── prd-feature.md       # Generated PRD
-    ├── prd.json             # JSON for Ralph
-    ├── progress.txt         # Iteration learnings
-    ├── guardrails.md        # Persistent lessons learned
-    └── activity.log         # Story transition log
+    ├── prd.json          # Stories with status
+    ├── progress.txt      # Iteration learnings
+    ├── guardrails.md     # Rules Claude MUST follow
+    └── activity.log      # Status transitions
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/prd` | Create a structured PRD |
-| `/prd-to-json` | Convert PRD markdown to JSON |
-| `/ralph` | Documentation and help |
-| `/overview` | Generate markdown summary of PRD progress |
-| `/frontend-design` | Create distinctive UI with high design quality |
-
-## CLI Usage
-
-```bash
-./scripts/ralph/ralph.sh [max_iterations] [feature_name] [options]
-```
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| max_iterations | auto | Max iterations (auto = stories + 30%) |
-| feature_name | "feature" | Name for worktree and branch |
-| --multi-agent | off | Enable parallel subagents for faster execution |
-| --browser | off | Enable headless browser automation |
-| --browser-visible | off | Enable browser with visible window |
-| --no-worktree | off | Run in current directory without creating worktree |
-
-### Examples
-
-```bash
-# Auto-calculate iterations from PRD
-./scripts/ralph/ralph.sh auto "user-auth"
-
-# Fixed 30 iterations
-./scripts/ralph/ralph.sh 30 "payment-system"
-
-# Quick 5-iteration run
-./scripts/ralph/ralph.sh 5 "bug-fix"
-
-# With multi-agent mode (faster, parallel exploration)
-./scripts/ralph/ralph.sh auto "complex-feature" --multi-agent
-
-# With browser automation (headless)
-./scripts/ralph/ralph.sh auto "checkout-flow" --browser
-
-# With visible browser (for debugging)
-./scripts/ralph/ralph.sh auto "login-tests" --browser-visible
-
-# Combined: multi-agent + browser
-./scripts/ralph/ralph.sh auto "e2e-feature" --multi-agent --browser
-
-# Run in current directory (no worktree)
-./scripts/ralph/ralph.sh auto "quick-fix" --no-worktree
-```
+| `/prd` | Generate structured PRD |
+| `/prd-to-json` | Convert PRD to JSON |
+| `/overview` | Summary of progress |
+| `/frontend-design` | High-quality UI generation |
 
 ## Multi-Agent Mode
 
-When `--multi-agent` is enabled, Ralph instructs Claude to leverage its **Task tool** to spawn specialized subagents for parallel work.
+Spawns specialized subagents via Claude's Task tool:
 
-### How It Works
+| Agent | Purpose |
+|-------|---------|
+| Explore | Fast codebase search |
+| Plan | Architecture strategy |
+| code-reviewer | Bugs, security, quality |
+| test-runner | Run test suites |
 
-Claude Code has access to specialized agents via the `Task` tool:
-
-| Agent Type | Purpose |
-|------------|---------|
-| `Explore` | Fast codebase exploration, file search, pattern matching |
-| `Plan` | Architecture planning, implementation strategy |
-| `code-reviewer` | Code review for bugs, security, quality |
-| `code-explorer` | Deep feature analysis, dependency mapping |
-| `test-runner` | Run test suites, identify failures |
-| `type-checker` | TypeScript/PHP type checking |
-
-### When to Use
-
-- **Complex features** with many files to explore
-- **Refactoring** tasks requiring codebase understanding
-- **Features requiring tests** that need parallel test runs
-- **Large codebases** where exploration takes time
-
-### Performance Trade-offs
-
-| Mode | Speed | Quality | Token Usage |
-|------|-------|---------|-------------|
-| Default | Normal | High | Lower |
-| Multi-agent | Faster | High* | Higher |
-
-*Quality remains high because subagents specialize in their tasks.
+Use for complex features, large codebases, or tasks requiring parallel exploration.
 
 ## Browser Mode
 
-When enabled, Ralph starts a Playwright-based browser server that Claude can use for UI testing and validation.
-
-### When to Use
-
-- User stories involving UI validation
-- Testing user flows (login, forms, checkout)
-- Verifying visual elements
-- Taking screenshots for documentation
-- **Multi-user testing** (chat between users, collaboration features)
-
-### Multi-Context Support
-
-The browser supports **multiple isolated contexts**, each with its own cookies, localStorage, and session state. Perfect for testing multi-user scenarios.
+Playwright server on `localhost:9222` with multi-context support for testing multi-user scenarios.
 
 ```bash
-# Create contexts for two users
+# Create isolated contexts
 curl -X POST localhost:9222/contexts -d '{"name":"user-a"}'
 curl -X POST localhost:9222/contexts -d '{"name":"user-b"}'
-
-# Each user has isolated state
-curl -X POST localhost:9222/navigate -d '{"name":"p1","context":"user-a","url":"http://app/login"}'
-curl -X POST localhost:9222/navigate -d '{"name":"p2","context":"user-b","url":"http://app/login"}'
 ```
 
-### Browser API
+**Key endpoints:** `/contexts`, `/pages`, `/navigate`, `/click`, `/fill`, `/screenshot`, `/eval`
 
-The server runs on `http://localhost:9222` with these endpoints:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Server status |
-| GET | `/contexts` | List browser contexts |
-| POST | `/contexts` | Create context `{name, clearData?}` |
-| DELETE | `/contexts/:n` | Close context `(?clearData=true)` |
-| GET | `/pages` | List open pages |
-| POST | `/pages` | Create page `{name, context?}` |
-| POST | `/navigate` | Navigate `{name, context?, url}` |
-| POST | `/screenshot` | Screenshot `{name, context?, path?}` |
-| POST | `/content` | Get content `{name, context?, selector?}` |
-| POST | `/click` | Click `{name, context?, selector}` |
-| POST | `/fill` | Fill `{name, context?, selector, value}` |
-| POST | `/eval` | Run JS `{name, context?, script}` |
-| POST | `/wait` | Wait `{name, context?, selector}` |
-| DELETE | `/pages/:name` | Close page |
-
-### Session Persistence
-
-Each context maintains its own cookies and local storage:
-- Data persists between navigations
-- Data is saved to `.ralph-browser-data/context-{name}/`
-- Use `clearData: true` to reset a user's state
-
-## Frontend Design Mode
-
-The `/frontend-design` command creates distinctive, production-grade interfaces while respecting project constraints.
-
-### Adaptive Behavior
-
-| Project Context | Behavior |
-|-----------------|----------|
-| **Has design system** | Creative layouts, motion, composition - using existing tokens |
-| **No design system** | Full creative freedom for fonts, colors, identity |
-
-### Detection
-
-The command automatically detects design systems by looking for:
-- `tailwind.config.*` (custom colors)
-- `src/constants/colors.ts`
-- `.claude/skills/design-consistency/`
-- `theme.ts`, `tokens.*`
-
-### Focus Areas
-
-When a design system exists, the command focuses on:
-- **Layout**: Asymmetry, overlap, grid-breaking, negative space
-- **Motion**: Staggered reveals, scroll-triggered, hover surprises
-- **Composition**: Visual hierarchy, diagonal flow, controlled density
-- **Spatial**: Interesting proportions, visual rhythm
-
-### Usage
-
-```bash
-# Inside Claude Code
-/frontend-design
-```
-
-Then describe what you want to build. Claude will analyze the project and apply the appropriate level of creative freedom.
+Each context has isolated cookies/localStorage. See `scripts/ralph/browser-instructions.md` for full API.
 
 ## Advanced Features
 
-### Guardrails (Lessons Learned)
-
-Ralph maintains a `tasks/guardrails.md` file with persistent lessons learned across iterations. Unlike `progress.txt` (which tracks iteration progress), guardrails contain rules that Claude MUST follow.
-
-```bash
-# Example guardrails.md entry
-### 2024-01-15: Database migrations
-- Always run `php artisan migrate:fresh` before tests
-- Foreign key constraints require specific order
-```
-
-### Stale Detection
-
-If a story remains `in_progress` for too long, Ralph automatically resets it to `open`.
-
-```bash
-# Configure timeout (default: 600 seconds / 10 minutes)
-STALE_SECONDS=900 ./scripts/ralph/ralph.sh auto "my-feature"
-```
-
-### Story Status
-
-Stories now support granular status tracking:
-
-| Status | Description |
-|--------|-------------|
-| `open` | Not started |
-| `in_progress` | Currently being worked on |
-| `done` | Completed |
-
-With timestamps:
-- `startedAt` - When work began (Unix timestamp)
-- `completedAt` - When work finished (Unix timestamp)
-- `staleCount` - Number of times story was reset due to stale detection
-
-### Activity Log
-
-All story transitions are logged to `tasks/activity.log`:
-
-```
-[2024-01-15 10:30:00] [US-001] [started] Beginning work on story
-[2024-01-15 11:45:00] [US-001] [completed] Story finished successfully
-[2024-01-15 12:00:00] [US-002] [started] Beginning work on story
-[2024-01-15 12:45:00] [US-002] [reset] Story reset due to stale timeout
-```
-
 ### Rate Limit Handling
 
-Ralph automatically detects Claude CLI rate limits and pauses with exponential backoff instead of wasting iterations.
-
-**Detection patterns:**
-- "You've hit your limit"
-- "rate limit"
-- "resets ... at"
-
-**Backoff schedule:**
-
-| Attempt | Wait Time |
-|---------|-----------|
-| 1 | 5 minutes |
-| 2 | 10 minutes |
-| 3 | 20 minutes |
-| 4+ | 30 minutes (max) |
-
-**Behavior:**
-- Iteration counter is NOT incremented during rate limit
-- Counter resets on successful iteration
-- User can press Ctrl+C to stop
-
-```
-[WARNING] Rate limit detected! (attempt 2)
-[INFO] Limit resets Jan 15 at 8am
-[INFO] Pausing for 10 minutes before retry (backoff level 2)...
-[INFO] Next retry at: 08:10:00
-```
+Detects rate limits and pauses with exponential backoff (5 → 10 → 20 → 30min max). Iteration counter not incremented during wait.
 
 ### Learning Consolidation
 
-When ALL stories are complete, Ralph consolidates learnings into permanent project documentation before finishing.
+At PRD completion, Ralph:
+1. Reads `guardrails.md` + `progress.txt`
+2. Validates existing items in `CLAUDE.md`/`AGENTS.md`
+3. Removes outdated, adds new (no duplicates)
+4. Commits documentation updates
 
-**Process:**
+### Stale Detection
 
-```
-All stories done
-       ↓
-Read guardrails.md + progress.txt
-       ↓
-Read existing CLAUDE.md + AGENTS.md
-       ↓
-Validate each item:
-  - Still valid? → Keep
-  - Outdated? → Remove
-  - Needs update? → Update
-       ↓
-Add new learnings (no duplicates)
-       ↓
-Commit: "docs: consolidate learnings from Ralph session"
-       ↓
-<promise>COMPLETE</promise>
-```
-
-**What gets added:**
-
-| File | Content |
-|------|---------|
-| `CLAUDE.md` | Commands, conventions, anti-patterns, gotchas |
-| `AGENTS.md` | Subagent instructions, tool configs, integration patterns |
-
-**Duplicate detection:** Before adding anything, Ralph checks if the same concept already exists (even with different wording).
-
-### Code Quality Rules
-
-Ralph enforces clean code practices during development:
-
-1. **No unnecessary comments** - Only add comments essential for understanding complex logic
-2. **Remove useless comments** - Clean up comments that don't add value when modifying code
-3. **Maintain consistency** - Match existing code style, patterns, and conventions
-4. **Clean as you go** - Remove dead code, unused imports when touching a file
-
-### Overview Command
-
-Generate a human-readable summary of PRD progress:
-
+Stories stuck `in_progress` too long auto-reset to `open`:
 ```bash
-# Print to stdout
-./scripts/ralph/overview.sh
-
-# Save to file
-./scripts/ralph/overview.sh --save
-
-# Or use the Claude command
-/overview
+STALE_SECONDS=900 ./scripts/ralph/ralph.sh auto "feature"
 ```
 
-## Claude Code Integration
+### Code Quality
 
-Ralph is tightly integrated with Claude Code CLI:
-
-### How Ralph Uses Claude Code
-
-```bash
-# Ralph runs this internally:
-claude --dangerously-skip-permissions -p "$prompt"
-```
-
-- **`--dangerously-skip-permissions`**: Allows autonomous file/git operations
-- **`-p`**: Passes the agent prompt directly
-
-### Claude Code Tools Used
-
-Ralph's prompt instructs Claude to use these Claude Code tools:
-
-| Tool | Purpose in Ralph |
-|------|------------------|
-| `Read` | Read prd.json, progress.txt, guardrails.md |
-| `Write` | Update prd.json, append to progress.txt |
-| `Edit` | Modify code files |
-| `Bash` | Run tests, git commands |
-| `Task` | Spawn subagents (multi-agent mode) |
-| `Grep/Glob` | Search codebase |
-
-### MCP Servers
-
-If your project has MCP servers configured, Claude Code will use them automatically:
-- `laravel-boost` for Laravel projects
-- `context7` for library documentation
-- Browser automation MCPs
+Ralph enforces: no unnecessary comments, remove useless ones, maintain consistency, clean as you go.
 
 ## Monitoring
 
 ```bash
-# Task status (new format with status)
-cat tasks/prd.json | jq '.userStories[] | {id, title, status}'
-
-# Task status (legacy format)
-cat tasks/prd.json | jq '.userStories[] | {id, title, passes}'
-
-# Progress learnings
-cat tasks/progress.txt
-
-# Guardrails
-cat tasks/guardrails.md
-
-# Activity log
-tail -20 tasks/activity.log
-
-# Generate overview
-./scripts/ralph/overview.sh
-
-# Recent commits
-git log --oneline -10
+jq '.userStories[] | {id, status}' tasks/prd.json  # Status
+tail -20 tasks/activity.log                         # Activity
+./scripts/ralph/overview.sh                         # Summary
 ```
 
 ## Troubleshooting
 
-### Claude Code Not Found
-
-```bash
-# Install Claude Code CLI
-# Visit: https://claude.ai/code
-```
-
-### Stories Keep Resetting
-
-```bash
-# Increase stale timeout
-STALE_SECONDS=1200 ./scripts/ralph/ralph.sh auto "my-feature"
-```
-
-### Slow Execution
-
-```bash
-# Enable multi-agent mode for parallel work
-./scripts/ralph/ralph.sh auto "my-feature" --multi-agent
-```
-
-### Rate Limit Errors
-
-Ralph automatically handles rate limits with exponential backoff. If you keep hitting limits:
-
-```bash
-# Wait for the indicated reset time, or
-# Press Ctrl+C to stop Ralph and resume later
-```
-
-### Restarting a Previous Session
-
-If you stopped Ralph and want to continue an existing worktree:
-
-```bash
-# Use --no-worktree to run in current directory
-cd /path/to/existing-worktree
-./scripts/ralph/ralph.sh auto "feature-name" --no-worktree
-```
+| Issue | Solution |
+|-------|----------|
+| Claude not found | Install from [claude.ai/code](https://claude.ai/code) |
+| Stories resetting | `STALE_SECONDS=1200 ./scripts/ralph/ralph.sh ...` |
+| Slow execution | Add `--multi-agent` |
+| Rate limited | Wait for backoff or Ctrl+C and resume later |
+| Resume session | `cd worktree && ./scripts/ralph/ralph.sh auto "name" --no-worktree` |
 
 ## Credits
 
-Based on the [Ralph pattern](https://github.com/snarktank/ralph) by Geoffrey Huntley, adapted specifically for Claude Code CLI by Fernando Chagas.
+Based on [Ralph](https://github.com/snarktank/ralph) by Geoffrey Huntley, adapted for Claude Code CLI.
 
 ## License
 

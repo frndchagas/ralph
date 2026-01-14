@@ -223,6 +223,21 @@ When enabled, Ralph starts a Playwright-based browser server that Claude can use
 - Testing user flows (login, forms, checkout)
 - Verifying visual elements
 - Taking screenshots for documentation
+- **Multi-user testing** (chat between users, collaboration features)
+
+### Multi-Context Support
+
+The browser supports **multiple isolated contexts**, each with its own cookies, localStorage, and session state. Perfect for testing multi-user scenarios.
+
+```bash
+# Create contexts for two users
+curl -X POST localhost:9222/contexts -d '{"name":"user-a"}'
+curl -X POST localhost:9222/contexts -d '{"name":"user-b"}'
+
+# Each user has isolated state
+curl -X POST localhost:9222/navigate -d '{"name":"p1","context":"user-a","url":"http://app/login"}'
+curl -X POST localhost:9222/navigate -d '{"name":"p2","context":"user-b","url":"http://app/login"}'
+```
 
 ### Browser API
 
@@ -231,20 +246,26 @@ The server runs on `http://localhost:9222` with these endpoints:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Server status |
+| GET | `/contexts` | List browser contexts |
+| POST | `/contexts` | Create context `{name, clearData?}` |
+| DELETE | `/contexts/:n` | Close context `(?clearData=true)` |
 | GET | `/pages` | List open pages |
-| POST | `/pages` | Create named page |
-| POST | `/navigate` | Navigate to URL |
-| POST | `/screenshot` | Take screenshot |
-| POST | `/content` | Get page content |
-| POST | `/click` | Click element |
-| POST | `/fill` | Fill input field |
-| POST | `/eval` | Run JavaScript |
-| POST | `/wait` | Wait for element |
+| POST | `/pages` | Create page `{name, context?}` |
+| POST | `/navigate` | Navigate `{name, context?, url}` |
+| POST | `/screenshot` | Screenshot `{name, context?, path?}` |
+| POST | `/content` | Get content `{name, context?, selector?}` |
+| POST | `/click` | Click `{name, context?, selector}` |
+| POST | `/fill` | Fill `{name, context?, selector, value}` |
+| POST | `/eval` | Run JS `{name, context?, script}` |
+| POST | `/wait` | Wait `{name, context?, selector}` |
 | DELETE | `/pages/:name` | Close page |
 
 ### Session Persistence
 
-Cookies and local storage persist between navigations. Login once and the session is maintained.
+Each context maintains its own cookies and local storage:
+- Data persists between navigations
+- Data is saved to `.ralph-browser-data/context-{name}/`
+- Use `clearData: true` to reset a user's state
 
 ## Advanced Features
 

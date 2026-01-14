@@ -1,8 +1,19 @@
 # Ralph
 
-> Autonomous AI Agent Loop for Claude Code CLI
+> Autonomous AI Agent Loop for **Claude Code CLI**
 
-Ralph is a system that enables Claude Code to autonomously complete entire features by iterating through a PRD (Product Requirements Document). Each iteration, Claude works on one user story, commits changes, documents learnings, and continues until all tasks are complete.
+Ralph is a system that enables [Claude Code CLI](https://claude.ai/code) to autonomously complete entire features by iterating through a PRD (Product Requirements Document). Each iteration, Claude works on one user story, commits changes, documents learnings, and continues until all tasks are complete.
+
+## Why Claude Code?
+
+Ralph is specifically designed for **Claude Code CLI** and leverages its unique capabilities:
+
+- **Persistent context**: Claude Code maintains conversation state across iterations
+- **Tool access**: Direct file system, git, and shell access via CLI tools
+- **Subagent system**: Can spawn specialized agents for parallel work (explore, plan, review)
+- **Permission management**: Uses `--dangerously-skip-permissions` for autonomous operation
+
+> ⚠️ Ralph is NOT designed for other AI coding assistants. It uses Claude Code-specific features like the `Task` tool and subagent architecture.
 
 ## Features
 
@@ -16,13 +27,14 @@ Ralph is a system that enables Claude Code to autonomously complete entire featu
 - **Stall detection**: Warns if stuck on the same task
 - **Stale detection**: Auto-resets stories stuck for too long (configurable timeout)
 - **Activity log**: Timestamped log of all story transitions
+- **Multi-agent mode** (optional): Leverages Claude's parallel subagents for faster execution
 - **Browser automation** (optional): Playwright-based browser for UI testing
 
 ## Quick Start
 
 ### 1. Install Dependencies
 
-- [Claude Code CLI](https://claude.ai/code)
+- **[Claude Code CLI](https://claude.ai/code)** - Required
 - [jq](https://stedolan.github.io/jq/) (`brew install jq`)
 - Git
 - [Bun](https://bun.sh) (only for `--browser` mode)
@@ -106,8 +118,9 @@ your-project/
 │       ├── ralph.sh         # Main loop script
 │       ├── overview.sh      # Generate markdown summary
 │       ├── prompt.md        # Agent instructions
-│       ├── guardrails-template.md  # Template for guardrails
-│       ├── browser-instructions.md  # Browser API docs
+│       ├── parallel-instructions.md  # Multi-agent instructions
+│       ├── guardrails-template.md    # Template for guardrails
+│       ├── browser-instructions.md   # Browser API docs
 │       ├── archive/         # Previous run archives
 │       └── browser/         # Browser automation (optional)
 │           ├── src/server.ts
@@ -133,13 +146,14 @@ your-project/
 ## CLI Usage
 
 ```bash
-./scripts/ralph/ralph.sh [max_iterations] [feature_name] [--browser] [--browser-visible]
+./scripts/ralph/ralph.sh [max_iterations] [feature_name] [options]
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | max_iterations | auto | Max iterations (auto = stories + 30%) |
 | feature_name | "feature" | Name for worktree and branch |
+| --multi-agent | off | Enable parallel subagents for faster execution |
 | --browser | off | Enable headless browser automation |
 | --browser-visible | off | Enable browser with visible window |
 
@@ -155,12 +169,51 @@ your-project/
 # Quick 5-iteration run
 ./scripts/ralph/ralph.sh 5 "bug-fix"
 
+# With multi-agent mode (faster, parallel exploration)
+./scripts/ralph/ralph.sh auto "complex-feature" --multi-agent
+
 # With browser automation (headless)
 ./scripts/ralph/ralph.sh auto "checkout-flow" --browser
 
 # With visible browser (for debugging)
 ./scripts/ralph/ralph.sh auto "login-tests" --browser-visible
+
+# Combined: multi-agent + browser
+./scripts/ralph/ralph.sh auto "e2e-feature" --multi-agent --browser
 ```
+
+## Multi-Agent Mode
+
+When `--multi-agent` is enabled, Ralph instructs Claude to leverage its **Task tool** to spawn specialized subagents for parallel work.
+
+### How It Works
+
+Claude Code has access to specialized agents via the `Task` tool:
+
+| Agent Type | Purpose |
+|------------|---------|
+| `Explore` | Fast codebase exploration, file search, pattern matching |
+| `Plan` | Architecture planning, implementation strategy |
+| `code-reviewer` | Code review for bugs, security, quality |
+| `code-explorer` | Deep feature analysis, dependency mapping |
+| `test-runner` | Run test suites, identify failures |
+| `type-checker` | TypeScript/PHP type checking |
+
+### When to Use
+
+- **Complex features** with many files to explore
+- **Refactoring** tasks requiring codebase understanding
+- **Features requiring tests** that need parallel test runs
+- **Large codebases** where exploration takes time
+
+### Performance Trade-offs
+
+| Mode | Speed | Quality | Token Usage |
+|------|-------|---------|-------------|
+| Default | Normal | High | Lower |
+| Multi-agent | Faster | High* | Higher |
+
+*Quality remains high because subagents specialize in their tasks.
 
 ## Browser Mode
 
@@ -258,6 +311,40 @@ Generate a human-readable summary of PRD progress:
 /overview
 ```
 
+## Claude Code Integration
+
+Ralph is tightly integrated with Claude Code CLI:
+
+### How Ralph Uses Claude Code
+
+```bash
+# Ralph runs this internally:
+claude --dangerously-skip-permissions -p "$prompt"
+```
+
+- **`--dangerously-skip-permissions`**: Allows autonomous file/git operations
+- **`-p`**: Passes the agent prompt directly
+
+### Claude Code Tools Used
+
+Ralph's prompt instructs Claude to use these Claude Code tools:
+
+| Tool | Purpose in Ralph |
+|------|------------------|
+| `Read` | Read prd.json, progress.txt, guardrails.md |
+| `Write` | Update prd.json, append to progress.txt |
+| `Edit` | Modify code files |
+| `Bash` | Run tests, git commands |
+| `Task` | Spawn subagents (multi-agent mode) |
+| `Grep/Glob` | Search codebase |
+
+### MCP Servers
+
+If your project has MCP servers configured, Claude Code will use them automatically:
+- `laravel-boost` for Laravel projects
+- `context7` for library documentation
+- Browser automation MCPs
+
 ## Monitoring
 
 ```bash
@@ -283,9 +370,32 @@ tail -20 tasks/activity.log
 git log --oneline -10
 ```
 
+## Troubleshooting
+
+### Claude Code Not Found
+
+```bash
+# Install Claude Code CLI
+# Visit: https://claude.ai/code
+```
+
+### Stories Keep Resetting
+
+```bash
+# Increase stale timeout
+STALE_SECONDS=1200 ./scripts/ralph/ralph.sh auto "my-feature"
+```
+
+### Slow Execution
+
+```bash
+# Enable multi-agent mode for parallel work
+./scripts/ralph/ralph.sh auto "my-feature" --multi-agent
+```
+
 ## Credits
 
-Based on the [Ralph pattern](https://github.com/snarktank/ralph) by Geoffrey Huntley.
+Based on the [Ralph pattern](https://github.com/snarktank/ralph) by Geoffrey Huntley, adapted specifically for Claude Code CLI by Fernando Chagas.
 
 ## License
 

@@ -9,10 +9,15 @@ MAX_ITERATIONS_ARG="auto"
 FEATURE_NAME="feature"
 USE_BROWSER=false
 BROWSER_HEADLESS=true
+USE_MULTI_AGENT=false
 STALE_SECONDS="${STALE_SECONDS:-600}"  # 10 minutes default
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --multi-agent)
+            USE_MULTI_AGENT=true
+            shift
+            ;;
         --browser)
             USE_BROWSER=true
             shift
@@ -349,17 +354,23 @@ get_pending_stories() {
 
 build_prompt() {
     local base_prompt=$(cat "${SCRIPT_DIR}/prompt.md")
+    local full_prompt="$base_prompt"
+
+    if [[ "$USE_MULTI_AGENT" == true ]]; then
+        local parallel_instructions=$(cat "${SCRIPT_DIR}/parallel-instructions.md" 2>/dev/null || echo "")
+        if [[ -n "$parallel_instructions" ]]; then
+            full_prompt="${full_prompt}\n\n${parallel_instructions}"
+        fi
+    fi
 
     if [[ "$USE_BROWSER" == true ]]; then
         local browser_instructions=$(cat "${SCRIPT_DIR}/browser-instructions.md" 2>/dev/null || echo "")
         if [[ -n "$browser_instructions" ]]; then
-            echo -e "${base_prompt}\n\n${browser_instructions}"
-        else
-            echo "$base_prompt"
+            full_prompt="${full_prompt}\n\n${browser_instructions}"
         fi
-    else
-        echo "$base_prompt"
     fi
+
+    echo -e "$full_prompt"
 }
 
 run_ralph_loop() {
@@ -393,6 +404,9 @@ run_ralph_loop() {
     log_ralph "Starting autonomous loop..."
     log_info "Max iterations: $MAX_ITERATIONS"
     log_info "Working directory: $work_dir"
+    if [[ "$USE_MULTI_AGENT" == true ]]; then
+        log_info "Multi-agent: ${GREEN}enabled${NC} (parallel subagents)"
+    fi
     if [[ "$USE_BROWSER" == true ]]; then
         log_info "Browser: ${GREEN}enabled${NC} (http://localhost:${RALPH_BROWSER_PORT:-9222})"
     fi
@@ -521,6 +535,9 @@ main() {
         log_info "Max iterations: auto (calculated from PRD)"
     else
         log_info "Max iterations: $MAX_ITERATIONS_ARG"
+    fi
+    if [[ "$USE_MULTI_AGENT" == true ]]; then
+        log_info "Multi-agent: enabled"
     fi
     if [[ "$USE_BROWSER" == true ]]; then
         log_info "Browser: enabled"

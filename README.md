@@ -152,7 +152,14 @@ Ralph enforces: no unnecessary comments, remove useless ones, maintain consisten
 Real-time dashboard with progress bar, current story, activity feed:
 
 ```bash
+# Auto-detect (finds tasks/prd.json in cwd or worktree)
+./scripts/ralph/ralph-monitor.sh
+
+# Explicit path
 ./scripts/ralph/ralph-monitor.sh /path/to/worktree
+
+# For --no-worktree mode (from project root)
+./scripts/ralph/ralph-monitor.sh .
 ```
 
 **Features:**
@@ -161,6 +168,7 @@ Real-time dashboard with progress bar, current story, activity feed:
 - Recent activity feed
 - Latest commits
 - Auto-refresh every 2s
+- Auto-detects worktree or current directory
 
 **Controls:** `q` quit, `r` refresh
 

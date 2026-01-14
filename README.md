@@ -8,10 +8,14 @@ Ralph is a system that enables Claude Code to autonomously complete entire featu
 
 - **Autonomous execution**: Runs Claude Code in a loop until feature is complete
 - **Persistent memory**: Uses `progress.txt` to share learnings across iterations
+- **Guardrails**: Persistent lessons learned that guide future iterations
 - **PRD-driven**: Structured task management via JSON
+- **Granular status**: Stories have `open|in_progress|done` status with timestamps
 - **Git worktrees**: Isolated development environment per feature
 - **Progress tracking**: Visual progress bars and status updates
 - **Stall detection**: Warns if stuck on the same task
+- **Stale detection**: Auto-resets stories stuck for too long (configurable timeout)
+- **Activity log**: Timestamped log of all story transitions
 - **Browser automation** (optional): Playwright-based browser for UI testing
 
 ## Quick Start
@@ -95,11 +99,14 @@ your-project/
 │   └── commands/
 │       ├── prd.md           # PRD generator command
 │       ├── prd-to-json.md   # JSON converter command
-│       └── ralph.md         # Ralph documentation
+│       ├── ralph.md         # Ralph documentation
+│       └── overview.md      # Overview generator command
 ├── scripts/
 │   └── ralph/
 │       ├── ralph.sh         # Main loop script
+│       ├── overview.sh      # Generate markdown summary
 │       ├── prompt.md        # Agent instructions
+│       ├── guardrails-template.md  # Template for guardrails
 │       ├── browser-instructions.md  # Browser API docs
 │       ├── archive/         # Previous run archives
 │       └── browser/         # Browser automation (optional)
@@ -109,7 +116,9 @@ your-project/
 └── tasks/
     ├── prd-feature.md       # Generated PRD
     ├── prd.json             # JSON for Ralph
-    └── progress.txt         # Iteration learnings
+    ├── progress.txt         # Iteration learnings
+    ├── guardrails.md        # Persistent lessons learned
+    └── activity.log         # Story transition log
 ```
 
 ## Commands
@@ -119,6 +128,7 @@ your-project/
 | `/prd` | Create a structured PRD |
 | `/prd-to-json` | Convert PRD markdown to JSON |
 | `/ralph` | Documentation and help |
+| `/overview` | Generate markdown summary of PRD progress |
 
 ## CLI Usage
 
@@ -185,14 +195,89 @@ The server runs on `http://localhost:9222` with these endpoints:
 
 Cookies and local storage persist between navigations. Login once and the session is maintained.
 
+## Advanced Features
+
+### Guardrails (Lessons Learned)
+
+Ralph maintains a `tasks/guardrails.md` file with persistent lessons learned across iterations. Unlike `progress.txt` (which tracks iteration progress), guardrails contain rules that Claude MUST follow.
+
+```bash
+# Example guardrails.md entry
+### 2024-01-15: Database migrations
+- Always run `php artisan migrate:fresh` before tests
+- Foreign key constraints require specific order
+```
+
+### Stale Detection
+
+If a story remains `in_progress` for too long, Ralph automatically resets it to `open`.
+
+```bash
+# Configure timeout (default: 600 seconds / 10 minutes)
+STALE_SECONDS=900 ./scripts/ralph/ralph.sh auto "my-feature"
+```
+
+### Story Status
+
+Stories now support granular status tracking:
+
+| Status | Description |
+|--------|-------------|
+| `open` | Not started |
+| `in_progress` | Currently being worked on |
+| `done` | Completed |
+
+With timestamps:
+- `startedAt` - When work began (Unix timestamp)
+- `completedAt` - When work finished (Unix timestamp)
+- `staleCount` - Number of times story was reset due to stale detection
+
+### Activity Log
+
+All story transitions are logged to `tasks/activity.log`:
+
+```
+[2024-01-15 10:30:00] [US-001] [started] Beginning work on story
+[2024-01-15 11:45:00] [US-001] [completed] Story finished successfully
+[2024-01-15 12:00:00] [US-002] [started] Beginning work on story
+[2024-01-15 12:45:00] [US-002] [reset] Story reset due to stale timeout
+```
+
+### Overview Command
+
+Generate a human-readable summary of PRD progress:
+
+```bash
+# Print to stdout
+./scripts/ralph/overview.sh
+
+# Save to file
+./scripts/ralph/overview.sh --save
+
+# Or use the Claude command
+/overview
+```
+
 ## Monitoring
 
 ```bash
-# Task status
+# Task status (new format with status)
+cat tasks/prd.json | jq '.userStories[] | {id, title, status}'
+
+# Task status (legacy format)
 cat tasks/prd.json | jq '.userStories[] | {id, title, passes}'
 
 # Progress learnings
 cat tasks/progress.txt
+
+# Guardrails
+cat tasks/guardrails.md
+
+# Activity log
+tail -20 tasks/activity.log
+
+# Generate overview
+./scripts/ralph/overview.sh
 
 # Recent commits
 git log --oneline -10

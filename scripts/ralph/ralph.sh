@@ -9,6 +9,7 @@ MAX_ITERATIONS_ARG="auto"
 FEATURE_NAME="feature"
 USE_BROWSER=false
 BROWSER_HEADLESS=true
+STALE_SECONDS="${STALE_SECONDS:-600}"  # 10 minutes default
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -72,7 +73,9 @@ log_browser() { echo -e "${MAGENTA}[BROWSER]${NC} $1" >&2; }
 
 show_progress() {
     local prd_file="$1"
-    local completed=$(jq '[.userStories[] | select(.passes == true)] | length' "$prd_file" 2>/dev/null || echo "0")
+    # Support both status-based and legacy passes-based format
+    local completed=$(jq '[.userStories[] | select(.status == "done" or (.status == null and .passes == true))] | length' "$prd_file" 2>/dev/null || echo "0")
+    local in_progress=$(jq '[.userStories[] | select(.status == "in_progress")] | length' "$prd_file" 2>/dev/null || echo "0")
     local total=$(jq '.userStories | length' "$prd_file" 2>/dev/null || echo "0")
 
     if [[ "$total" -eq 0 ]]; then
@@ -88,15 +91,24 @@ show_progress() {
     for ((i=0; i<empty; i++)); do bar+="░"; done
 
     log_info "Progress: [${bar}] ${completed}/${total} (${percent}%)"
+    if [[ "$in_progress" -gt 0 ]]; then
+        log_info "In progress: ${YELLOW}${in_progress}${NC} story(ies)"
+    fi
 }
 
 show_current_story() {
     local prd_file="$1"
-    local current_id=$(jq -r '.userStories[] | select(.passes == false) | .id' "$prd_file" 2>/dev/null | head -1)
+    # Support both status-based and legacy passes-based format
+    local current_id=$(jq -r '.userStories[] | select(.status == "in_progress") | .id' "$prd_file" 2>/dev/null | head -1)
+
+    if [[ -z "$current_id" ]]; then
+        current_id=$(jq -r '.userStories[] | select(.status == "open" or (.status == null and .passes == false)) | .id' "$prd_file" 2>/dev/null | head -1)
+    fi
 
     if [[ -n "$current_id" ]]; then
         local current_title=$(jq -r ".userStories[] | select(.id == \"$current_id\") | .title" "$prd_file" 2>/dev/null)
-        log_info "Current story: ${CYAN}${current_id}${NC} - ${current_title}"
+        local current_status=$(jq -r ".userStories[] | select(.id == \"$current_id\") | .status // \"open\"" "$prd_file" 2>/dev/null)
+        log_info "Current story: ${CYAN}${current_id}${NC} - ${current_title} [${YELLOW}${current_status}${NC}]"
     fi
 }
 
@@ -149,6 +161,58 @@ check_stall() {
     fi
 
     return 0
+}
+
+check_stale_story() {
+    local prd_file="$1"
+    local current_time=$(date +%s)
+
+    local in_progress_story=$(jq -r '.userStories[] | select(.status == "in_progress") | .id' "$prd_file" 2>/dev/null | head -1)
+
+    if [[ -z "$in_progress_story" ]]; then
+        return 0
+    fi
+
+    local started_at=$(jq -r ".userStories[] | select(.id == \"$in_progress_story\") | .startedAt // 0" "$prd_file" 2>/dev/null)
+
+    if [[ "$started_at" == "0" ]] || [[ "$started_at" == "null" ]]; then
+        return 0
+    fi
+
+    local elapsed=$((current_time - started_at))
+
+    if [[ $elapsed -gt $STALE_SECONDS ]]; then
+        log_warning "STALE STORY DETECTED: $in_progress_story has been in_progress for ${elapsed}s (limit: ${STALE_SECONDS}s)"
+        return 1
+    fi
+
+    return 0
+}
+
+reset_stale_story() {
+    local prd_file="$1"
+    local story_id="$2"
+    local work_dir="$3"
+
+    log_warning "Resetting stale story: $story_id"
+
+    cd "$work_dir"
+
+    jq "(.userStories[] | select(.id == \"$story_id\")) |= . + {status: \"open\", startedAt: null, staleCount: ((.staleCount // 0) + 1)}" "$prd_file" > tmp.json && mv tmp.json "$prd_file"
+
+    log_activity "$work_dir" "$story_id" "reset" "Story reset due to stale timeout (${STALE_SECONDS}s)"
+
+    log_info "Story $story_id reset to 'open' status"
+}
+
+log_activity() {
+    local work_dir="$1"
+    local story_id="$2"
+    local action="$3"
+    local message="$4"
+    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+
+    echo "[$timestamp] [$story_id] [$action] $message" >> "${work_dir}/tasks/activity.log"
 }
 
 show_banner() {
@@ -278,7 +342,8 @@ check_completion() {
 get_pending_stories() {
     local prd_file="$1"
     if [[ -f "$prd_file" ]]; then
-        jq -r '.userStories[] | select(.passes == false) | .id + ": " + .title' "$prd_file" 2>/dev/null || echo ""
+        # Support both new status-based and legacy passes-based format
+        jq -r '.userStories[] | select(.status == "open" or .status == "in_progress" or (.status == null and .passes == false)) | .id + ": " + .title' "$prd_file" 2>/dev/null || echo ""
     fi
 }
 
@@ -322,6 +387,8 @@ run_ralph_loop() {
 
     mkdir -p tasks
     [[ ! -f "tasks/progress.txt" ]] && touch "tasks/progress.txt" || true
+    [[ ! -f "tasks/guardrails.md" ]] && cp "${SCRIPT_DIR}/guardrails-template.md" "tasks/guardrails.md" || true
+    [[ ! -f "tasks/activity.log" ]] && touch "tasks/activity.log" || true
 
     log_ralph "Starting autonomous loop..."
     log_info "Max iterations: $MAX_ITERATIONS"
@@ -342,7 +409,19 @@ run_ralph_loop() {
 
         show_progress "tasks/prd.json"
 
-        local current_story=$(jq -r '.userStories[] | select(.passes == false) | .id' tasks/prd.json 2>/dev/null | head -1)
+        # Check for stale stories and reset if needed
+        if ! check_stale_story "tasks/prd.json"; then
+            local stale_story=$(jq -r '.userStories[] | select(.status == "in_progress") | .id' tasks/prd.json 2>/dev/null | head -1)
+            if [[ -n "$stale_story" ]]; then
+                reset_stale_story "tasks/prd.json" "$stale_story" "$work_dir"
+            fi
+        fi
+
+        # Get current story (prefer status-based, fallback to passes-based for backward compatibility)
+        local current_story=$(jq -r '.userStories[] | select(.status == "in_progress" or (.status == null and .passes == false)) | .id' tasks/prd.json 2>/dev/null | head -1)
+        if [[ -z "$current_story" ]]; then
+            current_story=$(jq -r '.userStories[] | select(.status == "open" or (.status == null and .passes == false)) | .id' tasks/prd.json 2>/dev/null | head -1)
+        fi
 
         local pending=$(get_pending_stories "tasks/prd.json")
         if [[ -z "$pending" ]]; then

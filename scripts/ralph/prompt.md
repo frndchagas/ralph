@@ -13,23 +13,42 @@ Complete all user stories in `tasks/prd.json` by implementing them one at a time
 First, read these files to understand where you are:
 
 ```bash
+# Read guardrails - CRITICAL rules learned from previous iterations
+cat tasks/guardrails.md 2>/dev/null || echo "No guardrails yet"
+
 # Read the PRD to see all tasks
 cat tasks/prd.json
 
 # Read previous learnings (if exists)
 cat tasks/progress.txt 2>/dev/null || echo "No previous progress"
 
+# Check activity log for recent story transitions
+tail -20 tasks/activity.log 2>/dev/null || echo "No activity log yet"
+
 # Check recent commits
 git log --oneline -5
 ```
 
+**IMPORTANT**: Always read `guardrails.md` first! It contains critical rules and patterns learned from previous iterations that you MUST follow.
+
 ### 2. Select Next Task
 
-From `tasks/prd.json`, find the **first user story** where `"passes": false`. This is your current task.
+From `tasks/prd.json`, find the next story to work on:
 
-If ALL stories have `"passes": true`, respond with:
+1. **First**, check for any story with `"status": "in_progress"` - continue this one
+2. **If none**, find the first story with `"status": "open"` - start this one
+3. **Legacy format**: If no `status` field exists, use `"passes": false`
+
+If ALL stories have `"status": "done"` (or `"passes": true`), respond with:
 ```
 <promise>COMPLETE</promise>
+```
+
+**IMPORTANT**: When starting a new story, mark it as `in_progress` immediately:
+
+```bash
+# Mark story as in_progress with timestamp
+jq '(.userStories[] | select(.id == "US-XXX")) |= . + {status: "in_progress", startedAt: '$(date +%s)'}' tasks/prd.json > tmp.json && mv tmp.json tasks/prd.json
 ```
 
 ### 3. Implement the Task
@@ -74,15 +93,45 @@ EOF
 
 ### 6. Update PRD Status
 
-Mark the completed story as `"passes": true` in `tasks/prd.json`.
+Mark the completed story as `"status": "done"` in `tasks/prd.json` with completion timestamp.
 
-Use jq or edit the file directly:
+Use jq to update the status:
 ```bash
-# Example: mark US-001 as complete
-jq '(.userStories[] | select(.id == "US-001")).passes = true' tasks/prd.json > tmp.json && mv tmp.json tasks/prd.json
+# Mark US-XXX as done with timestamp
+jq '(.userStories[] | select(.id == "US-XXX")) |= . + {status: "done", passes: true, completedAt: '$(date +%s)'}' tasks/prd.json > tmp.json && mv tmp.json tasks/prd.json
 ```
 
-### 7. Document Learnings
+**Status values:**
+- `open` - Not started yet
+- `in_progress` - Currently being worked on
+- `done` - Completed successfully
+
+**Timestamp fields:**
+- `startedAt` - Unix timestamp when story started
+- `completedAt` - Unix timestamp when story finished
+
+### 7. Log Activity
+
+**Log status changes** to `tasks/activity.log` for tracking:
+
+```bash
+# When starting a story
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [US-XXX] [started] Beginning work on story" >> tasks/activity.log
+
+# When completing a story
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [US-XXX] [completed] Story finished successfully" >> tasks/activity.log
+
+# When encountering issues
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [US-XXX] [blocked] Description of blocker" >> tasks/activity.log
+```
+
+**Activity types:**
+- `started` - Story work began
+- `completed` - Story finished
+- `blocked` - Encountered a blocker
+- `reset` - Story was reset (usually by stale detection)
+
+### 8. Document Learnings
 
 **CRITICAL**: Append your learnings to `tasks/progress.txt`. This is how future iterations learn from your work.
 
@@ -108,13 +157,13 @@ Story: US-XXX - [title]
 
 **NEVER replace** the progress file - always **append** to it.
 
-### 8. Check Completion
+### 9. Check Completion
 
 After updating status, check if all stories are complete:
 
 ```bash
-# Count incomplete stories
-jq '[.userStories[] | select(.passes == false)] | length' tasks/prd.json
+# Count incomplete stories (supports both formats)
+jq '[.userStories[] | select(.status == "open" or .status == "in_progress" or (.status == null and .passes == false))] | length' tasks/prd.json
 ```
 
 If the result is `0`, respond with:
@@ -133,13 +182,35 @@ Otherwise, end your response normally. The loop will start a new iteration.
 5. **Minimal changes** - Only change what's necessary for the current story
 6. **Test before commit** - Run relevant checks before committing
 
+## Updating Guardrails
+
+When you discover something important that future iterations MUST know:
+
+1. **Add to guardrails.md immediately** - Don't wait
+2. **Be specific** - Include exact error messages, file paths, commands
+3. **Explain why** - Help future iterations understand the reasoning
+
+Examples of what to add:
+- "Always run migrations before tests"
+- "Component X requires prop Y to be non-null"
+- "API endpoint Z has rate limiting of 100 req/min"
+
+```bash
+# Append a new guardrail
+echo "### $(date +%Y-%m-%d): [Title]
+- [Specific lesson learned]
+- Discovered during story US-XXX
+" >> tasks/guardrails.md
+```
+
 ## Handling Errors
 
 If you encounter errors:
 1. **Don't panic** - Document the error in progress.txt
 2. **Try to fix** - Make a reasonable attempt to resolve
 3. **If stuck** - Document what you tried and end the iteration
-4. **The loop continues** - Next iteration can pick up where you left off
+4. **Add to guardrails** - If the error reveals a pattern, add it to guardrails.md
+5. **The loop continues** - Next iteration can pick up where you left off
 
 ## Response Format
 

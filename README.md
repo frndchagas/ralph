@@ -110,7 +110,8 @@ your-project/
 │       ├── prd.md           # PRD generator command
 │       ├── prd-to-json.md   # JSON converter command
 │       ├── ralph.md         # Ralph documentation
-│       └── overview.md      # Overview generator command
+│       ├── overview.md      # Overview generator command
+│       └── frontend-design.md # UI/UX design assistant
 ├── scripts/
 │   └── ralph/
 │       ├── ralph.sh         # Main loop script
@@ -140,6 +141,7 @@ your-project/
 | `/prd-to-json` | Convert PRD markdown to JSON |
 | `/ralph` | Documentation and help |
 | `/overview` | Generate markdown summary of PRD progress |
+| `/frontend-design` | Create distinctive UI with high design quality |
 
 ## CLI Usage
 
@@ -266,6 +268,42 @@ Each context maintains its own cookies and local storage:
 - Data persists between navigations
 - Data is saved to `.ralph-browser-data/context-{name}/`
 - Use `clearData: true` to reset a user's state
+
+## Frontend Design Mode
+
+The `/frontend-design` command creates distinctive, production-grade interfaces while respecting project constraints.
+
+### Adaptive Behavior
+
+| Project Context | Behavior |
+|-----------------|----------|
+| **Has design system** | Creative layouts, motion, composition - using existing tokens |
+| **No design system** | Full creative freedom for fonts, colors, identity |
+
+### Detection
+
+The command automatically detects design systems by looking for:
+- `tailwind.config.*` (custom colors)
+- `src/constants/colors.ts`
+- `.claude/skills/design-consistency/`
+- `theme.ts`, `tokens.*`
+
+### Focus Areas
+
+When a design system exists, the command focuses on:
+- **Layout**: Asymmetry, overlap, grid-breaking, negative space
+- **Motion**: Staggered reveals, scroll-triggered, hover surprises
+- **Composition**: Visual hierarchy, diagonal flow, controlled density
+- **Spatial**: Interesting proportions, visual rhythm
+
+### Usage
+
+```bash
+# Inside Claude Code
+/frontend-design
+```
+
+Then describe what you want to build. Claude will analyze the project and apply the appropriate level of creative freedom.
 
 ## Advanced Features
 

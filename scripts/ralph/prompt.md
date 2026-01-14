@@ -79,7 +79,9 @@ Fix any errors before proceeding.
 Create a commit with a clear message:
 
 ```bash
+# Add all changes EXCEPT screenshots, images, and Ralph runtime files
 git add -A
+git reset -- '*.png' '*.jpg' '*.jpeg' '*.gif' '*.webp' '**/screenshots/**' '**/archive/**' 'tasks/prd.json' 'tasks/progress.txt' 'tasks/activity.log' 'tasks/guardrails.md' '**/.browser.log' '**/.browser.pid' '**/.ralph-browser-data/**' 2>/dev/null || true
 git commit -m "$(cat <<'EOF'
 feat(scope): short description
 
@@ -90,6 +92,8 @@ Story: US-XXX
 EOF
 )"
 ```
+
+**IMPORTANT**: Never commit screenshots, images, or Ralph runtime files. The `git reset` command above removes them from staging.
 
 ### 6. Update PRD Status
 
@@ -181,6 +185,7 @@ Otherwise, end your response normally. The loop will start a new iteration.
 4. **Follow patterns** - Check existing code for conventions
 5. **Minimal changes** - Only change what's necessary for the current story
 6. **Test before commit** - Run relevant checks before committing
+7. **NEVER commit runtime artifacts** - Screenshots, archives, and task state files are temporary. Always exclude: `.png`, `.jpg`, `.gif`, `**/screenshots/**`, `**/archive/**`, `tasks/prd.json`, `tasks/progress.txt`, `tasks/activity.log`, `tasks/guardrails.md`
 
 ## Code Quality Rules
 

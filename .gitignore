@@ -8,16 +8,24 @@ Thumbs.db
 *.swp
 *.swo
 
-# Ralph archives (optional - keep if you want history)
-# scripts/ralph/archive/
+# Ralph archives (backups of previous runs - never commit)
+scripts/ralph/archive/
 
-# Generated task files (project-specific)
+# Generated task files (project-specific, runtime state)
 tasks/prd.json
 tasks/progress.txt
+tasks/activity.log
+tasks/guardrails.md
 
-# Browser automation
-scripts/ralph/browser/node_modules/
-scripts/ralph/browser/.ralph-browser-data/
-scripts/ralph/browser/.browser.log
-scripts/ralph/browser/.browser.pid
-scripts/ralph/browser/bun.lock
+# Browser automation (anywhere in project)
+**/.ralph-browser-data/
+**/.browser.log
+**/.browser.pid
+**/node_modules/
+bun.lock
+
+# Screenshots (browser automation artifacts - should never be committed)
+**/screenshots/
+**/*.screenshot.png
+**/*.screenshot.jpg
+tasks/screenshots/

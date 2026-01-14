@@ -349,6 +349,44 @@ check_completion() {
     return 1
 }
 
+check_rate_limit() {
+    local output="$1"
+    if echo "$output" | grep -qi "You've hit your limit\|rate limit\|resets.*at"; then
+        return 0
+    fi
+    return 1
+}
+
+wait_for_rate_limit_reset() {
+    local reset_info="$1"
+    local count="${2:-1}"
+
+    log_warning "Rate limit detected! (attempt $count)"
+
+    local reset_time=$(echo "$reset_info" | grep -oE 'resets [^(]+' | head -1)
+    if [[ -n "$reset_time" ]]; then
+        log_info "Limit $reset_time"
+    fi
+
+    # Exponential backoff: 5min, 10min, 20min, 30min (max)
+    local base_wait=300
+    local wait_time=$((base_wait * count))
+    if [[ $wait_time -gt 1800 ]]; then
+        wait_time=1800  # Cap at 30 minutes
+    fi
+    local wait_minutes=$((wait_time / 60))
+
+    echo ""
+    log_info "Options:"
+    echo "  1. Wait for rate limit reset"
+    echo "  2. Press Ctrl+C to stop Ralph"
+    echo ""
+    log_info "Pausing for ${wait_minutes} minutes before retry (backoff level $count)..."
+    log_info "Next retry at: $(date -v+${wait_minutes}M '+%H:%M:%S' 2>/dev/null || date -d "+${wait_minutes} minutes" '+%H:%M:%S' 2>/dev/null || echo "in ${wait_minutes} minutes")"
+
+    sleep $wait_time
+}
+
 get_pending_stories() {
     local prd_file="$1"
     if [[ -f "$prd_file" ]]; then
@@ -383,6 +421,7 @@ run_ralph_loop() {
     local iteration=1
     local completed=false
     local previous_story=""
+    local rate_limit_count=0
 
     cd "$work_dir"
 
@@ -476,6 +515,17 @@ run_ralph_loop() {
 
         echo ""
         log_info "Iteration completed in ${duration}s"
+
+        # Check for rate limit BEFORE processing output
+        if check_rate_limit "$output"; then
+            rate_limit_count=$((rate_limit_count + 1))
+            wait_for_rate_limit_reset "$output" "$rate_limit_count"
+            log_info "Retrying iteration $iteration after rate limit pause..."
+            continue  # Retry same iteration, don't increment
+        fi
+
+        # Reset rate limit counter on successful iteration
+        rate_limit_count=0
 
         show_iteration_summary "$work_dir"
 

@@ -25,6 +25,9 @@ Ralph is specifically designed for **Claude Code CLI** and leverages its unique 
 - **Stall detection**: Warns if stuck on the same task
 - **Stale detection**: Auto-resets stories stuck for too long (configurable timeout)
 - **Activity log**: Timestamped log of all story transitions
+- **Rate limit handling**: Detects Claude rate limits with exponential backoff
+- **Learning consolidation**: Auto-updates CLAUDE.md/AGENTS.md at PRD completion
+- **Code quality rules**: Enforces clean code patterns during development
 - **Multi-agent mode** (optional): Leverages Claude's parallel subagents for faster execution
 - **Browser automation** (optional): Playwright-based browser for UI testing
 
@@ -357,6 +360,79 @@ All story transitions are logged to `tasks/activity.log`:
 [2024-01-15 12:45:00] [US-002] [reset] Story reset due to stale timeout
 ```
 
+### Rate Limit Handling
+
+Ralph automatically detects Claude CLI rate limits and pauses with exponential backoff instead of wasting iterations.
+
+**Detection patterns:**
+- "You've hit your limit"
+- "rate limit"
+- "resets ... at"
+
+**Backoff schedule:**
+
+| Attempt | Wait Time |
+|---------|-----------|
+| 1 | 5 minutes |
+| 2 | 10 minutes |
+| 3 | 20 minutes |
+| 4+ | 30 minutes (max) |
+
+**Behavior:**
+- Iteration counter is NOT incremented during rate limit
+- Counter resets on successful iteration
+- User can press Ctrl+C to stop
+
+```
+[WARNING] Rate limit detected! (attempt 2)
+[INFO] Limit resets Jan 15 at 8am
+[INFO] Pausing for 10 minutes before retry (backoff level 2)...
+[INFO] Next retry at: 08:10:00
+```
+
+### Learning Consolidation
+
+When ALL stories are complete, Ralph consolidates learnings into permanent project documentation before finishing.
+
+**Process:**
+
+```
+All stories done
+       ↓
+Read guardrails.md + progress.txt
+       ↓
+Read existing CLAUDE.md + AGENTS.md
+       ↓
+Validate each item:
+  - Still valid? → Keep
+  - Outdated? → Remove
+  - Needs update? → Update
+       ↓
+Add new learnings (no duplicates)
+       ↓
+Commit: "docs: consolidate learnings from Ralph session"
+       ↓
+<promise>COMPLETE</promise>
+```
+
+**What gets added:**
+
+| File | Content |
+|------|---------|
+| `CLAUDE.md` | Commands, conventions, anti-patterns, gotchas |
+| `AGENTS.md` | Subagent instructions, tool configs, integration patterns |
+
+**Duplicate detection:** Before adding anything, Ralph checks if the same concept already exists (even with different wording).
+
+### Code Quality Rules
+
+Ralph enforces clean code practices during development:
+
+1. **No unnecessary comments** - Only add comments essential for understanding complex logic
+2. **Remove useless comments** - Clean up comments that don't add value when modifying code
+3. **Maintain consistency** - Match existing code style, patterns, and conventions
+4. **Clean as you go** - Remove dead code, unused imports when touching a file
+
 ### Overview Command
 
 Generate a human-readable summary of PRD progress:
@@ -452,6 +528,25 @@ STALE_SECONDS=1200 ./scripts/ralph/ralph.sh auto "my-feature"
 ```bash
 # Enable multi-agent mode for parallel work
 ./scripts/ralph/ralph.sh auto "my-feature" --multi-agent
+```
+
+### Rate Limit Errors
+
+Ralph automatically handles rate limits with exponential backoff. If you keep hitting limits:
+
+```bash
+# Wait for the indicated reset time, or
+# Press Ctrl+C to stop Ralph and resume later
+```
+
+### Restarting a Previous Session
+
+If you stopped Ralph and want to continue an existing worktree:
+
+```bash
+# Use --no-worktree to run in current directory
+cd /path/to/existing-worktree
+./scripts/ralph/ralph.sh auto "feature-name" --no-worktree
 ```
 
 ## Credits

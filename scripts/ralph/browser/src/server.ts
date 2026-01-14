@@ -147,7 +147,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    // Health check
     if (method === 'GET' && url.pathname === '/health') {
       res.end(JSON.stringify({
         status: 'ok',
@@ -157,7 +156,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // List contexts
     if (method === 'GET' && url.pathname === '/contexts') {
       const contextList = Array.from(contexts.entries()).map(([name, info]) => {
         const contextPages = Array.from(pages.entries())
@@ -173,7 +171,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Create context
     if (method === 'POST' && url.pathname === '/contexts') {
       const body = await readBody(req);
       const { name, clearData } = JSON.parse(body);
@@ -189,7 +186,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Delete context
     if (method === 'DELETE' && url.pathname.startsWith('/contexts/')) {
       const contextName = decodeURIComponent(url.pathname.replace('/contexts/', ''));
       const clearData = url.searchParams.get('clearData') === 'true';
@@ -203,7 +199,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // List pages
     if (method === 'GET' && url.pathname === '/pages') {
       const pageList = Array.from(pages.entries()).map(([name, info]) => ({
         name,
@@ -215,7 +210,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Create page
     if (method === 'POST' && url.pathname === '/pages') {
       const body = await readBody(req);
       const { name, context: contextName } = JSON.parse(body);
@@ -224,7 +218,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Navigate
     if (method === 'POST' && url.pathname === '/navigate') {
       const body = await readBody(req);
       const { name, context: contextName, url: targetUrl } = JSON.parse(body);
@@ -235,7 +228,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Screenshot
     if (method === 'POST' && url.pathname === '/screenshot') {
       const body = await readBody(req);
       const { name, context: contextName, path: screenshotPath, fullPage } = JSON.parse(body);
@@ -251,7 +243,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Content
     if (method === 'POST' && url.pathname === '/content') {
       const body = await readBody(req);
       const { name, context: contextName, selector } = JSON.parse(body);
@@ -268,7 +259,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Click
     if (method === 'POST' && url.pathname === '/click') {
       const body = await readBody(req);
       const { name, context: contextName, selector } = JSON.parse(body);
@@ -279,7 +269,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Fill
     if (method === 'POST' && url.pathname === '/fill') {
       const body = await readBody(req);
       const { name, context: contextName, selector, value } = JSON.parse(body);
@@ -289,7 +278,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Eval
     if (method === 'POST' && url.pathname === '/eval') {
       const body = await readBody(req);
       const { name, context: contextName, script } = JSON.parse(body);
@@ -299,7 +287,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Wait
     if (method === 'POST' && url.pathname === '/wait') {
       const body = await readBody(req);
       const { name, context: contextName, selector, state, timeout } = JSON.parse(body);
@@ -309,7 +296,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    // Delete page
     if (method === 'DELETE' && url.pathname.startsWith('/pages/')) {
       const pageName = decodeURIComponent(url.pathname.replace('/pages/', ''));
       if (pages.has(pageName)) {

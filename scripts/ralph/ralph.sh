@@ -372,7 +372,7 @@ wait_for_rate_limit_reset() {
     local base_wait=300
     local wait_time=$((base_wait * count))
     if [[ $wait_time -gt 1800 ]]; then
-        wait_time=1800  # Cap at 30 minutes
+        wait_time=1800
     fi
     local wait_minutes=$((wait_time / 60))
 
@@ -467,7 +467,6 @@ run_ralph_loop() {
 
         show_progress "tasks/prd.json"
 
-        # Check for stale stories and reset if needed
         if ! check_stale_story "tasks/prd.json"; then
             local stale_story=$(jq -r '.userStories[] | select(.status == "in_progress") | .id' tasks/prd.json 2>/dev/null | head -1)
             if [[ -n "$stale_story" ]]; then

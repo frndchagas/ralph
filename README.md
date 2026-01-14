@@ -156,6 +156,7 @@ your-project/
 | --multi-agent | off | Enable parallel subagents for faster execution |
 | --browser | off | Enable headless browser automation |
 | --browser-visible | off | Enable browser with visible window |
+| --no-worktree | off | Run in current directory without creating worktree |
 
 ### Examples
 
@@ -180,6 +181,9 @@ your-project/
 
 # Combined: multi-agent + browser
 ./scripts/ralph/ralph.sh auto "e2e-feature" --multi-agent --browser
+
+# Run in current directory (no worktree)
+./scripts/ralph/ralph.sh auto "quick-fix" --no-worktree
 ```
 
 ## Multi-Agent Mode

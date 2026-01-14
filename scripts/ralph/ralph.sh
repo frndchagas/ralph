@@ -10,6 +10,7 @@ FEATURE_NAME="feature"
 USE_BROWSER=false
 BROWSER_HEADLESS=true
 USE_MULTI_AGENT=false
+USE_WORKTREE=true
 STALE_SECONDS="${STALE_SECONDS:-600}"  # 10 minutes default
 
 while [[ $# -gt 0 ]]; do
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
         --browser-visible)
             USE_BROWSER=true
             BROWSER_HEADLESS=false
+            shift
+            ;;
+        --no-worktree)
+            USE_WORKTREE=false
             shift
             ;;
         -*)
@@ -542,6 +547,9 @@ main() {
     if [[ "$USE_BROWSER" == true ]]; then
         log_info "Browser: enabled"
     fi
+    if [[ "$USE_WORKTREE" == false ]]; then
+        log_info "Worktree: disabled (running in current directory)"
+    fi
     echo ""
 
     if [[ "$USE_BROWSER" == true ]]; then
@@ -550,7 +558,12 @@ main() {
     fi
 
     local work_dir
-    work_dir=$(create_worktree)
+    if [[ "$USE_WORKTREE" == true ]]; then
+        work_dir=$(create_worktree)
+    else
+        work_dir="$PROJECT_ROOT"
+        log_info "Using current directory: $work_dir"
+    fi
 
     archive_previous_run "$work_dir"
 

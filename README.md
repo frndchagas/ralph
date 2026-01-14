@@ -13,8 +13,6 @@ Ralph is specifically designed for **Claude Code CLI** and leverages its unique 
 - **Subagent system**: Can spawn specialized agents for parallel work (explore, plan, review)
 - **Permission management**: Uses `--dangerously-skip-permissions` for autonomous operation
 
-> ⚠️ Ralph is NOT designed for other AI coding assistants. It uses Claude Code-specific features like the `Task` tool and subagent architecture.
-
 ## Features
 
 - **Autonomous execution**: Runs Claude Code in a loop until feature is complete

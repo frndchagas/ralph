@@ -182,6 +182,13 @@ Otherwise, end your response normally. The loop will start a new iteration.
 5. **Minimal changes** - Only change what's necessary for the current story
 6. **Test before commit** - Run relevant checks before committing
 
+## Code Quality Rules
+
+1. **No unnecessary comments** - Only add comments that are absolutely essential for understanding complex logic
+2. **Remove useless comments** - When modifying code, remove any comments that don't add value
+3. **Maintain consistency** - Match the existing code style, patterns, and conventions in the project
+4. **Clean as you go** - If you touch a file, leave it cleaner than you found it (remove dead code, unused imports)
+
 ## Updating Guardrails
 
 When you discover something important that future iterations MUST know:

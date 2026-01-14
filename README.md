@@ -147,6 +147,25 @@ Ralph enforces: no unnecessary comments, remove useless ones, maintain consisten
 
 ## Monitoring
 
+### TUI Dashboard (Recommended)
+
+Real-time dashboard with progress bar, current story, activity feed:
+
+```bash
+./scripts/ralph/ralph-monitor.sh /path/to/worktree
+```
+
+**Features:**
+- Live progress bar
+- Current story indicator
+- Recent activity feed
+- Latest commits
+- Auto-refresh every 2s
+
+**Controls:** `q` quit, `r` refresh
+
+### CLI Monitoring
+
 ```bash
 jq '.userStories[] | {id, status}' tasks/prd.json  # Status
 tail -20 tasks/activity.log                         # Activity

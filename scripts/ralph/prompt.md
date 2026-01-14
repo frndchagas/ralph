@@ -219,6 +219,84 @@ If you encounter errors:
 4. **Add to guardrails** - If the error reveals a pattern, add it to guardrails.md
 5. **The loop continues** - Next iteration can pick up where you left off
 
+## Consolidating Learnings (Final Step)
+
+**When ALL stories are complete**, before responding with `<promise>COMPLETE</promise>`, consolidate your learnings into the project's permanent documentation:
+
+### 1. Gather Learnings
+
+Review what you learned during this session:
+```bash
+cat tasks/guardrails.md
+cat tasks/progress.txt
+```
+
+### 2. Read Existing Documentation
+
+```bash
+cat CLAUDE.md 2>/dev/null || echo "No CLAUDE.md"
+cat AGENTS.md 2>/dev/null || echo "No AGENTS.md"
+```
+
+### 3. Validate & Clean Existing Items
+
+For each item in CLAUDE.md and AGENTS.md:
+- **Keep** if still relevant and accurate
+- **Remove** if outdated, incorrect, or no longer applies
+- **Update** if partially correct but needs refinement
+
+Ask yourself:
+- "Does this convention still match what I saw in the codebase?"
+- "Is this command still valid?"
+- "Does this pattern still apply?"
+
+### 4. Add New Learnings (No Duplicates)
+
+Before adding anything new, check if it already exists (same concept, different words).
+
+**What to add to CLAUDE.md:**
+- New commands discovered (build, test, lint)
+- Code conventions observed in the codebase
+- Anti-patterns to avoid
+- Project-specific gotchas
+
+**What to add to AGENTS.md:**
+- Instructions for subagents working on this project
+- Tool-specific configurations
+- Integration patterns
+
+### 5. Commit Documentation Updates
+
+Only if changes were made:
+```bash
+git add CLAUDE.md AGENTS.md
+git diff --cached --quiet || git commit -m "docs: consolidate learnings from Ralph session
+
+- Validated existing conventions
+- Removed outdated items
+- Added new patterns discovered
+
+Session: $(date +%Y-%m-%d)"
+```
+
+### Example Changes
+
+**Remove (outdated):**
+```diff
+- ## Database: MySQL 5.7
++ ## Database: PostgreSQL 16
+```
+
+**Add (new learning):**
+```markdown
+## Testing
+- Run `composer test` before committing
+- Feature tests require `RefreshDatabase` trait
+```
+
+**Skip (already exists):**
+If CLAUDE.md already says "Use Biome for linting", don't add "Run biome check for code quality" - it's the same thing.
+
 ## Response Format
 
 End your response with one of:

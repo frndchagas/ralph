@@ -179,8 +179,8 @@ Otherwise, end your response normally. The loop will start a new iteration.
 
 ## Important Rules
 
-1. **One story per iteration** - Don't try to complete multiple stories at once
-2. **Always commit** - Each iteration should produce at least one commit
+1. **CRITICAL: One story per iteration** - Complete ONLY the current story, then STOP. Do not continue to the next story. The loop will handle iteration. If you complete multiple stories in one iteration, you break the tracking system.
+2. **Always commit** - Each iteration should produce exactly one commit for the completed story
 3. **Document everything** - Future iterations depend on your progress.txt entries
 4. **Follow patterns** - Check existing code for conventions
 5. **Minimal changes** - Only change what's necessary for the current story

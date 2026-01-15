@@ -134,7 +134,7 @@ show_iteration_summary() {
     if [[ -n "$commits" ]]; then
         log_info "Recent commits:"
         echo "$commits" | while read -r line; do
-            echo "  ${GREEN}${line}${NC}" >&2
+            echo -e "  ${GREEN}${line}${NC}" >&2
         done
     fi
 
@@ -145,10 +145,13 @@ show_iteration_summary() {
     fi
 
     if [[ -f "tasks/progress.txt" ]] && [[ -s "tasks/progress.txt" ]]; then
-        log_info "Last documented progress:"
-        echo -e "${GRAY}" >&2
-        tail -15 tasks/progress.txt | head -15 >&2
-        echo -e "${NC}" >&2
+        log_info "Last learning:"
+        local last_section=$(grep -n "^---$" tasks/progress.txt | tail -2 | head -1 | cut -d: -f1)
+        if [[ -n "$last_section" ]]; then
+            tail -n +$last_section tasks/progress.txt | head -12 | while read -r line; do
+                echo -e "  ${GRAY}${line}${NC}" >&2
+            done
+        fi
     fi
 }
 
@@ -422,6 +425,8 @@ run_ralph_loop() {
     local completed=false
     local previous_story=""
     local rate_limit_count=0
+    local total_duration=0
+    local iteration_count=0
 
     cd "$work_dir"
 
@@ -511,9 +516,23 @@ run_ralph_loop() {
 
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
+        total_duration=$((total_duration + duration))
+        iteration_count=$((iteration_count + 1))
 
         echo ""
-        log_info "Iteration completed in ${duration}s"
+        local duration_min=$((duration / 60))
+        local duration_sec=$((duration % 60))
+        log_info "Iteration completed in ${duration_min}m ${duration_sec}s"
+
+        if [[ $iteration_count -gt 0 ]]; then
+            local avg_duration=$((total_duration / iteration_count))
+            local remaining_stories=$(jq '[.userStories[] | select(.status == "open" or .status == "in_progress" or (.status == null and .passes == false))] | length' tasks/prd.json 2>/dev/null || echo "0")
+            if [[ $remaining_stories -gt 0 ]]; then
+                local eta_seconds=$((avg_duration * remaining_stories))
+                local eta_min=$((eta_seconds / 60))
+                log_info "ETA: ~${eta_min}m (${remaining_stories} stories × ${avg_duration}s avg)"
+            fi
+        fi
 
         # Check for rate limit BEFORE processing output
         if check_rate_limit "$output"; then
@@ -550,13 +569,19 @@ run_ralph_loop() {
 
     if [[ "$completed" == true ]]; then
         log_success "Ralph completed all tasks!"
-        log_info "Total iterations: $((iteration))"
+        local total_min=$((total_duration / 60))
+        log_info "Total iterations: $iteration | Total time: ${total_min}m"
 
         echo ""
         log_info "Next steps:"
         echo "  1. Review changes: git log --oneline -10"
         echo "  2. Create PR: gh pr create"
         echo "  3. Or merge: git checkout main && git merge --no-ff"
+
+        # macOS notification
+        if command -v osascript &> /dev/null; then
+            osascript -e 'display notification "All tasks completed!" with title "Ralph" sound name "Glass"' 2>/dev/null || true
+        fi
 
         return 0
     else

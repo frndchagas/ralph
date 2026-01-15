@@ -263,6 +263,17 @@ check_dependencies() {
         exit 1
     fi
 
+    if [[ "$USE_BROWSER" == true ]]; then
+        if ! command -v curl &> /dev/null; then
+            log_error "curl not found. Required to install Bun for browser mode."
+            exit 1
+        fi
+
+        if ! command -v bun &> /dev/null; then
+            log_warning "Bun not found. Browser mode will attempt auto-install via curl."
+        fi
+    fi
+
     log_success "All dependencies found"
 }
 
@@ -297,14 +308,34 @@ create_worktree() {
         return 0
     fi
 
+    # Check if prd.json exists in source before creating worktree
+    local prd_source="${PROJECT_ROOT}/tasks/prd.json"
+    if [[ ! -f "$prd_source" ]]; then
+        log_error "File tasks/prd.json not found in source directory!"
+        log_info "Run /prd to create a PRD then /prd-to-json to convert"
+        exit 1
+    fi
+
     log_info "Creating branch: $branch_name"
     cd "$PROJECT_ROOT"
 
     git fetch origin main 2>/dev/null || git fetch origin master 2>/dev/null || true
 
-    local default_branch="main"
-    if ! git show-ref --verify --quiet "refs/remotes/origin/main"; then
-        default_branch="master"
+    local default_branch=""
+    local origin_head
+    origin_head=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+    if [[ -n "$origin_head" ]]; then
+        default_branch="${origin_head#origin/}"
+    fi
+
+    if [[ -z "$default_branch" ]]; then
+        if git show-ref --verify --quiet "refs/remotes/origin/main"; then
+            default_branch="main"
+        elif git show-ref --verify --quiet "refs/remotes/origin/master"; then
+            default_branch="master"
+        else
+            default_branch="$(git branch --show-current 2>/dev/null || echo main)"
+        fi
     fi
 
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
@@ -322,6 +353,12 @@ create_worktree() {
     if [[ -f ".claude/scripts/worktree-setup.sh" ]]; then
         bash .claude/scripts/worktree-setup.sh
     fi
+
+    # Copy prd.json from source to worktree
+    log_info "Copying prd.json to worktree..."
+    mkdir -p "tasks"
+    cp "$prd_source" "tasks/prd.json"
+    log_success "prd.json copied successfully"
 
     echo "$worktree_dir"
 }
@@ -405,18 +442,18 @@ build_prompt() {
     if [[ "$USE_MULTI_AGENT" == true ]]; then
         local parallel_instructions=$(cat "${SCRIPT_DIR}/parallel-instructions.md" 2>/dev/null || echo "")
         if [[ -n "$parallel_instructions" ]]; then
-            full_prompt="${full_prompt}\n\n${parallel_instructions}"
+            full_prompt="${full_prompt}"$'\n\n'"${parallel_instructions}"
         fi
     fi
 
     if [[ "$USE_BROWSER" == true ]]; then
         local browser_instructions=$(cat "${SCRIPT_DIR}/browser-instructions.md" 2>/dev/null || echo "")
         if [[ -n "$browser_instructions" ]]; then
-            full_prompt="${full_prompt}\n\n${browser_instructions}"
+            full_prompt="${full_prompt}"$'\n\n'"${browser_instructions}"
         fi
     fi
 
-    echo -e "$full_prompt"
+    printf '%s\n' "$full_prompt"
 }
 
 run_ralph_loop() {

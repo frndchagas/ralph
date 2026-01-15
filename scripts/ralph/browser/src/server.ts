@@ -4,8 +4,11 @@ import { join } from 'path';
 import { mkdirSync, existsSync, writeFileSync, readFileSync, rmSync } from 'fs';
 
 const PORT = parseInt(process.env.RALPH_BROWSER_PORT || '9222');
+const HOST = process.env.RALPH_BROWSER_HOST || '127.0.0.1';
 const HEADLESS = process.env.RALPH_BROWSER_HEADLESS === 'true';
+const AUTH_TOKEN = process.env.RALPH_BROWSER_TOKEN || '';
 const DATA_DIR = join(process.cwd(), '.ralph-browser-data');
+const CONTEXT_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
 interface PageInfo {
   page: Page;
@@ -27,6 +30,10 @@ async function initBrowser() {
     mkdirSync(DATA_DIR, { recursive: true });
   }
 
+  if (browser && browser.isConnected()) {
+    return;
+  }
+
   browser = await chromium.launch({
     headless: HEADLESS,
     args: ['--disable-blink-features=AutomationControlled'],
@@ -35,57 +42,86 @@ async function initBrowser() {
   console.log(`Browser initialized (headless: ${HEADLESS})`);
 }
 
+function assertSafeContextName(contextName: string): string {
+  if (!CONTEXT_NAME_PATTERN.test(contextName)) {
+    throw new Error(`Invalid context name: "${contextName}"`);
+  }
+  return contextName;
+}
+
 function getContextDataDir(contextName: string): string {
-  return join(DATA_DIR, `context-${contextName}`);
+  const safeName = assertSafeContextName(contextName);
+  return join(DATA_DIR, `context-${safeName}`);
+}
+
+function getContextStorageStatePath(contextName: string): string {
+  return join(getContextDataDir(contextName), 'storageState.json');
 }
 
 async function getOrCreateContext(name: string): Promise<BrowserContext> {
-  if (contexts.has(name)) {
-    return contexts.get(name)!.context;
+  const contextName = assertSafeContextName(name);
+  if (contexts.has(contextName)) {
+    return contexts.get(contextName)!.context;
   }
 
-  if (!browser) {
+  if (!browser || !browser.isConnected()) {
     await initBrowser();
   }
 
-  const contextDataDir = getContextDataDir(name);
+  const contextDataDir = getContextDataDir(contextName);
   if (!existsSync(contextDataDir)) {
     mkdirSync(contextDataDir, { recursive: true });
   }
 
-  const context = await browser!.newContext({
-    viewport: { width: 1280, height: 720 },
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-  });
+  const storageStatePath = getContextStorageStatePath(contextName);
+  let context: BrowserContext;
 
-  const cookiesPath = join(contextDataDir, 'cookies.json');
-  if (existsSync(cookiesPath)) {
-    try {
-      const cookies = JSON.parse(readFileSync(cookiesPath, 'utf-8'));
-      await context.addCookies(cookies);
-    } catch (e) {
-      console.warn(`Failed to load cookies for context ${name}:`, e);
+  if (existsSync(storageStatePath)) {
+    context = await browser!.newContext({
+      viewport: { width: 1280, height: 720 },
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      storageState: storageStatePath,
+    });
+  } else {
+    context = await browser!.newContext({
+      viewport: { width: 1280, height: 720 },
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    });
+
+    const cookiesPath = join(contextDataDir, 'cookies.json');
+    if (existsSync(cookiesPath)) {
+      try {
+        const cookies = JSON.parse(readFileSync(cookiesPath, 'utf-8'));
+        await context.addCookies(cookies);
+      } catch (e) {
+        console.warn(`Failed to load cookies for context ${contextName}:`, e);
+      }
     }
   }
 
-  contexts.set(name, { context, createdAt: new Date() });
-  console.log(`Context "${name}" created`);
+  contexts.set(contextName, { context, createdAt: new Date() });
+  console.log(`Context "${contextName}" created`);
 
   return context;
 }
 
-async function saveCookies(contextName: string) {
+async function saveStorageState(contextName: string) {
   const contextInfo = contexts.get(contextName);
   if (contextInfo) {
+    const contextDataDir = getContextDataDir(contextName);
+    const storageStatePath = getContextStorageStatePath(contextName);
+
+    await contextInfo.context.storageState({ path: storageStatePath });
+
     const cookies = await contextInfo.context.cookies();
-    const cookiesPath = join(getContextDataDir(contextName), 'cookies.json');
+    const cookiesPath = join(contextDataDir, 'cookies.json');
     writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
   }
 }
 
-async function saveAllCookies() {
+async function saveAllStorageStates() {
   for (const [name] of contexts) {
-    await saveCookies(name);
+    await saveStorageState(name);
   }
 }
 
@@ -110,23 +146,24 @@ async function getOrCreatePage(pageName: string, contextName: string = 'default'
 }
 
 async function closeContext(contextName: string): Promise<boolean> {
-  const contextInfo = contexts.get(contextName);
+  const safeName = assertSafeContextName(contextName);
+  const contextInfo = contexts.get(safeName);
   if (!contextInfo) {
     return false;
   }
 
-  await saveCookies(contextName);
+  await saveStorageState(safeName);
 
   for (const [pageName, pageInfo] of pages) {
-    if (pageInfo.contextName === contextName) {
+    if (pageInfo.contextName === safeName) {
       await pageInfo.page.close().catch(() => {});
       pages.delete(pageName);
     }
   }
 
   await contextInfo.context.close().catch(() => {});
-  contexts.delete(contextName);
-  console.log(`Context "${contextName}" closed`);
+  contexts.delete(safeName);
+  console.log(`Context "${safeName}" closed`);
 
   return true;
 }
@@ -140,6 +177,19 @@ async function clearContextData(contextName: string): Promise<boolean> {
   return false;
 }
 
+function isAuthorized(req: IncomingMessage): boolean {
+  if (!AUTH_TOKEN) return true;
+
+  const authHeader = req.headers.authorization;
+  const tokenHeader = req.headers['x-ralph-token'];
+  const bearer = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : '';
+  const token = bearer || (typeof tokenHeader === 'string' ? tokenHeader.trim() : '');
+
+  return token === AUTH_TOKEN;
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
   const method = req.method || 'GET';
@@ -147,6 +197,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Content-Type', 'application/json');
 
   try {
+    if (!isAuthorized(req)) {
+      res.statusCode = 401;
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
     if (method === 'GET' && url.pathname === '/health') {
       res.end(JSON.stringify({
         status: 'ok',
@@ -223,7 +279,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       const { name, context: contextName, url: targetUrl } = JSON.parse(body);
       const page = await getOrCreatePage(name || 'default', contextName || 'default');
       await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-      await saveCookies(contextName || 'default');
+      await saveStorageState(contextName || 'default');
       res.end(JSON.stringify({ success: true, url: page.url(), title: await page.title() }));
       return;
     }
@@ -264,7 +320,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       const { name, context: contextName, selector } = JSON.parse(body);
       const page = await getOrCreatePage(name || 'default', contextName || 'default');
       await page.click(selector);
-      await saveCookies(contextName || 'default');
+      await saveStorageState(contextName || 'default');
       res.end(JSON.stringify({ success: true }));
       return;
     }
@@ -274,6 +330,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       const { name, context: contextName, selector, value } = JSON.parse(body);
       const page = await getOrCreatePage(name || 'default', contextName || 'default');
       await page.fill(selector, value);
+      await saveStorageState(contextName || 'default');
       res.end(JSON.stringify({ success: true }));
       return;
     }
@@ -283,6 +340,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       const { name, context: contextName, script } = JSON.parse(body);
       const page = await getOrCreatePage(name || 'default', contextName || 'default');
       const result = await page.evaluate(script);
+      await saveStorageState(contextName || 'default');
       res.end(JSON.stringify({ success: true, result }));
       return;
     }
@@ -300,7 +358,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       const pageName = decodeURIComponent(url.pathname.replace('/pages/', ''));
       if (pages.has(pageName)) {
         const pageInfo = pages.get(pageName)!;
-        await saveCookies(pageInfo.contextName);
+        await saveStorageState(pageInfo.contextName);
         await pageInfo.page.close();
         pages.delete(pageName);
       }
@@ -327,7 +385,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 async function cleanup() {
   console.log('\nShutting down...');
-  await saveAllCookies();
+  await saveAllStorageStates();
 
   for (const [, info] of pages) {
     await info.page.close().catch(() => {});
@@ -351,10 +409,11 @@ process.on('SIGTERM', cleanup);
 
 const server = createServer(handleRequest);
 
-server.listen(PORT, () => {
-  console.log(`Ralph Browser Server running on http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Ralph Browser Server running on http://${HOST}:${PORT}`);
   console.log(`Headless: ${HEADLESS}`);
   console.log(`Data dir: ${DATA_DIR}`);
+  console.log(`Auth: ${AUTH_TOKEN ? 'enabled' : 'disabled'}`);
   console.log('\nEndpoints:');
   console.log('  GET  /health       - Server status');
   console.log('  GET  /contexts     - List browser contexts');

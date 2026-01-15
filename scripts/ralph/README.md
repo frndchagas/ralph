@@ -41,7 +41,7 @@ Based on the [Ralph pattern](https://github.com/snarktank/ralph) by Geoffrey Hun
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| max_iterations | auto | Max iterations (auto = stories + 30% margin) |
+| max_iterations | auto | Max iterations (auto = stories + 30% margin, minimum 20) |
 | feature_name | "feature" | Name for worktree and branch |
 
 ### Examples

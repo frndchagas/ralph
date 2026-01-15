@@ -45,7 +45,7 @@ git clone https://github.com/frndchagas/ralph.git /tmp/ralph && \
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| iterations | auto | Max iterations (auto = stories + 30%) |
+| iterations | auto | Max iterations (auto = stories + 30%, minimum 20) |
 | feature | "feature" | Name for worktree/branch |
 | --multi-agent | off | Enable parallel subagents |
 | --browser | off | Headless browser |
@@ -118,7 +118,10 @@ curl -X POST localhost:9222/contexts -d '{"name":"user-b"}'
 
 **Key endpoints:** `/contexts`, `/pages`, `/navigate`, `/click`, `/fill`, `/screenshot`, `/eval`
 
-Each context has isolated cookies/localStorage. See `scripts/ralph/browser-instructions.md` for full API.
+Each context has isolated cookies/localStorage and persists via storage state. See `scripts/ralph/browser-instructions.md` for full API.
+
+**Optional security:** set `RALPH_BROWSER_TOKEN` and send `Authorization: Bearer <token>` (or `X-Ralph-Token`).
+**Bind host:** set `RALPH_BROWSER_HOST` (default `127.0.0.1`).
 
 ## Advanced Features
 

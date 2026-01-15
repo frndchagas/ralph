@@ -37,6 +37,13 @@ This is useful for testing multi-user scenarios (e.g., User A chatting with User
 | POST | `/wait` | `{name, context?, selector, state?, timeout?}` | Wait for element |
 | DELETE | `/pages/:name` | - | Close page |
 
+### Security (Optional)
+
+You can require a token for all requests by setting `RALPH_BROWSER_TOKEN`.
+Send it via `Authorization: Bearer <token>` or `X-Ralph-Token: <token>`.
+
+You can also change the bind host with `RALPH_BROWSER_HOST` (default `127.0.0.1`).
+
 ### Multi-User Example
 
 ```bash
@@ -103,11 +110,12 @@ Use the browser server when:
 
 Each context maintains its own cookies and local storage:
 - Data persists between navigations within the same context
-- Data is saved to disk when the server shuts down
+- Data is saved to disk as a Playwright storage state
 - Data is loaded automatically when the context is recreated
 - Use `clearData: true` to start fresh
 
 ### Data Storage
 
 Context data is stored in `.ralph-browser-data/context-{name}/`:
-- `cookies.json` - All cookies for the context
+- `storageState.json` - Cookies + localStorage (Playwright storage state)
+- `cookies.json` - Cookies only (legacy/debug)

@@ -34,7 +34,7 @@ format_timestamp() {
     if [[ "$ts" == "null" ]] || [[ -z "$ts" ]] || [[ "$ts" == "0" ]]; then
         echo "-"
     else
-        date -r "$ts" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "-"
+        date -r "$ts" "+%Y-%m-%d %H:%M" 2>/dev/null || date -d "@$ts" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "-"
     fi
 }
 

@@ -301,19 +301,29 @@ create_worktree() {
     local branch_name="ralph/${slug}"
     local worktree_dir="${PROJECT_ROOT}/../$(basename "$PROJECT_ROOT")-ralph-${slug}"
 
-    if [[ -d "$worktree_dir" ]]; then
-        log_warning "Worktree already exists: $worktree_dir"
-        log_info "Using existing worktree..."
-        echo "$worktree_dir"
-        return 0
-    fi
-
-    # Check if prd.json exists in source before creating worktree
+    # Check if prd.json exists in source (required for both new and existing worktrees)
     local prd_source="${PROJECT_ROOT}/tasks/prd.json"
     if [[ ! -f "$prd_source" ]]; then
         log_error "File tasks/prd.json not found in source directory!"
         log_info "Run /prd to create a PRD then /prd-to-json to convert"
         exit 1
+    fi
+
+    if [[ -d "$worktree_dir" ]]; then
+        log_warning "Worktree already exists: $worktree_dir"
+        log_info "Using existing worktree..."
+
+        # Sync prd.json to existing worktree if source is newer
+        local worktree_prd="${worktree_dir}/tasks/prd.json"
+        if [[ ! -f "$worktree_prd" ]] || [[ "$prd_source" -nt "$worktree_prd" ]]; then
+            log_info "Syncing prd.json to worktree (source is newer)..."
+            mkdir -p "${worktree_dir}/tasks"
+            cp "$prd_source" "$worktree_prd"
+            log_success "prd.json synced successfully"
+        fi
+
+        echo "$worktree_dir"
+        return 0
     fi
 
     log_info "Creating branch: $branch_name"

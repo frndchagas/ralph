@@ -11,6 +11,7 @@ USE_BROWSER=false
 BROWSER_HEADLESS=true
 USE_MULTI_AGENT=false
 USE_WORKTREE=true
+RESET_PRD=false
 STALE_SECONDS="${STALE_SECONDS:-600}"  # 10 minutes default
 
 while [[ $# -gt 0 ]]; do
@@ -30,6 +31,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-worktree)
             USE_WORKTREE=false
+            shift
+            ;;
+        --reset)
+            RESET_PRD=true
             shift
             ;;
         -*)
@@ -313,9 +318,14 @@ create_worktree() {
         log_warning "Worktree already exists: $worktree_dir"
         log_info "Using existing worktree..."
 
-        # Sync prd.json to existing worktree if source is newer
+        # Sync prd.json to existing worktree if source is newer OR --reset flag is set
         local worktree_prd="${worktree_dir}/tasks/prd.json"
-        if [[ ! -f "$worktree_prd" ]] || [[ "$prd_source" -nt "$worktree_prd" ]]; then
+        if [[ "$RESET_PRD" == true ]]; then
+            log_info "Resetting prd.json in worktree (--reset flag)..."
+            mkdir -p "${worktree_dir}/tasks"
+            cp "$prd_source" "$worktree_prd"
+            log_success "prd.json reset successfully"
+        elif [[ ! -f "$worktree_prd" ]] || [[ "$prd_source" -nt "$worktree_prd" ]]; then
             log_info "Syncing prd.json to worktree (source is newer)..."
             mkdir -p "${worktree_dir}/tasks"
             cp "$prd_source" "$worktree_prd"
@@ -667,6 +677,9 @@ main() {
     fi
     if [[ "$USE_BROWSER" == true ]]; then
         log_info "Browser: enabled"
+    fi
+    if [[ "$RESET_PRD" == true ]]; then
+        log_info "Reset: enabled (will overwrite worktree prd.json)"
     fi
     if [[ "$USE_WORKTREE" == false ]]; then
         log_info "Worktree: disabled (running in current directory)"

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ralph Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb--one"></div>
+    <div class="bg-orb bg-orb--two"></div>
+    <div class="bg-grid"></div>
+
+    <header class="hero">
+      <div class="hero__text">
+        <div class="eyebrow">
+          <span class="dot" id="live-dot"></span>
+          <span>Ralph Live Monitor</span>
+          <span class="muted" id="updated-at">--</span>
+        </div>
+        <h1 id="title">Loading...</h1>
+        <p id="description" class="lead"></p>
+        <div class="meta">
+          <div class="meta__item">
+            <span>Work directory</span>
+            <code id="workdir">--</code>
+          </div>
+          <div class="meta__item">
+            <span>Tasks directory</span>
+            <code id="tasksdir">--</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero__status">
+        <div class="card status-card">
+          <div class="status-card__top">
+            <span class="pill" id="status-pill">Idle</span>
+            <span class="muted" id="stories-count">0 stories</span>
+          </div>
+          <div class="progress-ring">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" class="ring-bg"></circle>
+              <circle cx="60" cy="60" r="54" class="ring-progress" id="ring-progress"></circle>
+            </svg>
+            <div class="progress-ring__label">
+              <div class="progress-ring__value" id="percent">0%</div>
+            <div class="progress-ring__caption">Completed</div>
+          </div>
+        </div>
+        <div class="status-grid" id="status-grid">
+            <div>
+              <span class="label">Done</span>
+              <span class="value" id="done-count">0</span>
+            </div>
+            <div>
+              <span class="label">In progress</span>
+              <span class="value" id="inprogress-count">0</span>
+            </div>
+            <div>
+              <span class="label">Open</span>
+              <span class="value" id="open-count">0</span>
+            </div>
+            <div>
+              <span class="label">Resets</span>
+              <span class="value" id="reset-count">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card" id="issues-card">
+        <div class="card__header">
+          <h2>Errors & Warnings</h2>
+          <span class="pill pill--warning" id="issue-count">0</span>
+        </div>
+        <div class="stack" id="issues-list"></div>
+      </section>
+
+      <section class="card" id="stories-card">
+        <div class="card__header">
+          <h2>Stories</h2>
+          <div class="filters" id="story-filters">
+            <button class="filter active" data-filter="all">All</button>
+            <button class="filter" data-filter="open">Open</button>
+            <button class="filter" data-filter="in_progress">In progress</button>
+            <button class="filter" data-filter="done">Done</button>
+          </div>
+        </div>
+        <div class="stories" id="stories-list"></div>
+      </section>
+
+      <section class="card" id="activity-card">
+        <div class="card__header">
+          <h2>Recent Activity</h2>
+          <span class="muted" id="activity-count">0 events</span>
+        </div>
+        <div class="activity" id="activity-list"></div>
+      </section>
+
+      <section class="card" id="learning-card">
+        <div class="card__header">
+          <h2>Latest Learning</h2>
+          <span class="pill pill--info" id="learning-label">progress.txt</span>
+        </div>
+        <pre class="pre" id="latest-learning"></pre>
+      </section>
+
+      <section class="card" id="guardrails-card">
+        <div class="card__header">
+          <h2>Guardrails Preview</h2>
+          <span class="pill pill--info" id="guardrails-label">guardrails.md</span>
+        </div>
+        <pre class="pre" id="guardrails-preview"></pre>
+      </section>
+
+      <section class="card" id="screenshots-card">
+        <div class="card__header">
+          <h2>Screenshots</h2>
+          <span class="muted" id="screenshots-count">0 files</span>
+        </div>
+        <div class="shots" id="screenshots-grid"></div>
+      </section>
+    </main>
+
+    <div class="modal" id="shot-modal" aria-hidden="true">
+      <div class="modal__backdrop" data-close="true"></div>
+      <div class="modal__content">
+        <div class="modal__toolbar">
+          <div class="toolbar__group">
+            <button class="modal__button" data-action="prev">Prev</button>
+            <button class="modal__button" data-action="next">Next</button>
+            <span class="modal__counter" id="modal-counter">0 / 0</span>
+          </div>
+          <div class="toolbar__group">
+            <button class="modal__button" data-action="zoom-out">-</button>
+            <button class="modal__button" data-action="zoom-in">+</button>
+            <button class="modal__button" data-action="zoom-reset">Reset</button>
+            <button class="modal__button" data-close="true">Close</button>
+          </div>
+        </div>
+        <div class="modal__image-wrap">
+          <img id="modal-image" alt="Screenshot preview" />
+        </div>
+        <div class="modal__caption" id="modal-caption"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -127,6 +127,14 @@ cat tasks/progress.txt
 git log --oneline -10
 ```
 
+### HTML Dashboard (Live)
+
+```bash
+./scripts/ralph/dashboard/start.sh /path/to/project
+```
+
+Then open `http://localhost:7420` for a live HTML view of progress, activity, and screenshots.
+
 ## Tips
 
 1. **Small user stories**: Each story should be completable in one session
